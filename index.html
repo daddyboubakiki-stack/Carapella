@@ -502,6 +502,15 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
         <p class="help">100セントが半音1つ分です。±50セントは「いちばん近い半音が合っている」くらいの幅です。ビブラートをかけると、きびしい設定では中心が合っていても外れが増えます。</p>
       </div>
       <div class="set">
+        <span class="lbl" id="sensitivityLbl">音を拾う感度</span>
+        <div class="seg" role="radiogroup" aria-labelledby="sensitivityLbl">
+          <label><input type="radio" name="sensitivity" value="low">低</label>
+          <label><input type="radio" name="sensitivity" value="medium" checked>中</label>
+          <label><input type="radio" name="sensitivity" value="high">高</label>
+        </div>
+        <p class="help">小さい音も判定するかを調整します。「中」がこれまでと同じ設定です。「高」は小さい声を拾いやすくなりますが、ガイド音や周囲の音も拾いやすくなります。スピーカー使用時は、歌わずにガイドだけ流して声の線が出ないか確かめてください。</p>
+      </div>
+      <div class="set">
         <label class="check"><input type="checkbox" id="countIn" checked><span><b>再生の前にカウントを鳴らす</b><br><span class="help">再生・録音・区間リピートのたびに、1小節分のカウントを鳴らします。③④では、このあいだに自分のパートの最初の音も鳴ります。</span></span></label>
       </div>
       <div class="set">
@@ -525,8 +534,8 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
       <div class="set">
         <label class="lbl" for="lat">声の遅れ補正 <output id="latOut">—</output></label>
-        <input type="range" id="lat" min="0" max="400" step="10" value="80" style="width:100%">
-        <p class="help" id="latHelp">ガイドが聞こえてから声の線が出るまでの遅れを差し引きます。Bluetoothイヤホン（AirPodsなど）では大きめ（200〜300ミリ秒）にしてください。ずれていると、正しく歌っても点が下がります。</p>
+        <input type="range" id="lat" min="0" max="1000" step="10" value="80" style="width:100%">
+        <p class="help" id="latHelp">0〜1,000ミリ秒（1秒）で調整できます。声の線とガイドの時刻が合うように調整してください。初期の自動推定は目安で、端末・ブラウザ・スピーカーやイヤホンの違いで必要な値は変わります。手動で合わせた値は、このブラウザに保存します。これは時間の位置合わせで、音声処理そのものを速くする設定ではありません。</p>
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="ec"><span><b>エコー除去を使う</b><br><span class="help">イヤホンがない時の応急処置です。声の音色が変わり、判定は不安定になります。</span></span></label>
@@ -852,7 +861,7 @@ function say(text, info) {
 const S = {
   song: null, label: '', sel: 0, pstate: [], events: [],
   guideVol: 0.8, rate: 1, transpose: 0,
-  tol: 50, octaveFree: false, showOthers: true, naming: 'en', ec: false, latMs: 80, zoom: 140,
+  tol: 50, sensitivity: 'medium', octaveFree: false, showOthers: true, naming: 'en', ec: false, latMs: 80, zoom: 140,
   trail: [], score: { n: 0, ok: 0 }, live: null, level: 0, takes: [], takeNo: 0,
   mode: 1, countIn: true, loop: { on: false, a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
 };
@@ -875,13 +884,23 @@ const MODES = {
 };
 const modeFactor = (i) => { const md = MODES[S.mode]; return i === S.sel ? md.own : md.others; };
 
+// マイクの増幅ではなく、判定対象にする最小音量を変える。周期性の基準は維持する。
+const SENSITIVITY = Object.freeze({ low: 0.016, medium: 0.008, high: 0.004 });
+const MAX_LATENCY_MS = 1000;
+function validLatency(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= MAX_LATENCY_MS;
+}
+function readSensitivity(value) {
+  return Object.hasOwn(SENSITIVITY, value) ? value : 'medium';
+}
+
 // ===== 設定の記憶（この端末のブラウザだけ。使えなくても動く） =====
 const PREF_KEY = 'acapella-renshucho:v1';
 function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}') || {}; } catch (e) { return {}; }
 }
 function savePrefs() {
-  const p = { naming: S.naming, tol: S.tol, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
+  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
   if (latTouched) p.latMs = S.latMs;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 記憶できなくても練習はできる */ }
 }
@@ -935,7 +954,7 @@ function ensureCtx() {
     if (!latTouched) {
       // 出力の遅れ（端末が報告する値）＋マイク入力と解析窓の分のおおよその見積もり
       const est = Math.round((outLat() + 0.045) * 100) * 10;
-      S.latMs = clamp(est, 40, 400);
+      S.latMs = clamp(est, 40, MAX_LATENCY_MS);
       $('lat').value = S.latMs;
       $('latOut').textContent = S.latMs + 'ミリ秒';
     }
@@ -1332,7 +1351,7 @@ function targetAt(t, voice) {
 function analyze() {
   const mic = A.mic;
   mic.an.getFloatTimeDomainData(mic.buf);
-  const r = detect(mic.buf, A.ctx.sampleRate);
+  const r = detect(mic.buf, A.ctx.sampleRate, { minRms: SENSITIVITY[S.sensitivity] });
   S.level = r.rms;
   const midi = smooth(r.f > 0 ? 69 + 12 * Math.log2(r.f / 440) : null);
   const live = { midi, target: null, cents: null, ok: null };
@@ -2547,6 +2566,12 @@ const setKey = (d) => {
 $('keyDown').addEventListener('click', () => setKey(-1));
 $('keyUp').addEventListener('click', () => setKey(1));
 document.querySelectorAll('input[name="tol"]').forEach((el) => el.addEventListener('change', () => { S.tol = Number(el.value); savePrefs(); }));
+document.querySelectorAll('input[name="sensitivity"]').forEach((el) => el.addEventListener('change', () => {
+  S.sensitivity = readSensitivity(el.value);
+  sm = { hist: [], miss: 3, last: null };
+  savePrefs();
+  kick();
+}));
 document.querySelectorAll('input[name="naming"]').forEach((el) => el.addEventListener('change', () => { S.naming = el.value; updateRanges(); savePrefs(); kick(); }));
 $('octFree').addEventListener('change', (e) => { S.octaveFree = e.target.checked; savePrefs(); });
 $('others').addEventListener('change', (e) => { S.showOthers = e.target.checked; savePrefs(); kick(); });
@@ -2695,6 +2720,7 @@ window.addEventListener('pagehide', onHidden);
   const p = loadPrefs();
   if (p.naming === 'en' || p.naming === 'ja') S.naming = p.naming;
   if (p.tol === 25 || p.tol === 50) S.tol = p.tol;
+  S.sensitivity = readSensitivity(p.sensitivity);
   if (typeof p.octaveFree === 'boolean') S.octaveFree = p.octaveFree;
   if (typeof p.showOthers === 'boolean') S.showOthers = p.showOthers;
   if (p.zoom >= 25 && p.zoom <= 320) S.zoom = p.zoom;
@@ -2703,9 +2729,10 @@ window.addEventListener('pagehide', onHidden);
   if (typeof p.countIn === 'boolean') S.countIn = p.countIn;
   if (MODES[p.mode]) S.mode = p.mode;
   if (typeof p.partName === 'string') S.partName = p.partName;
-  if (p.latMs >= 0 && p.latMs <= 400) { S.latMs = p.latMs; latTouched = true; }
+  if (validLatency(p.latMs)) { S.latMs = p.latMs; latTouched = true; }
   document.querySelectorAll('input[name="naming"]').forEach((el) => { el.checked = el.value === S.naming; });
   document.querySelectorAll('input[name="tol"]').forEach((el) => { el.checked = Number(el.value) === S.tol; });
+  document.querySelectorAll('input[name="sensitivity"]').forEach((el) => { el.checked = el.value === S.sensitivity; });
   $('octFree').checked = S.octaveFree;
   $('others').checked = S.showOthers;
   $('zoom').value = S.zoom;
