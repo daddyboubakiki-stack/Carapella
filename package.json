@@ -1,0 +1,13 @@
+{
+  "name": "carapella",
+  "private": true,
+  "description": "アカペラサークルの個人の音取りのためのWebアプリ（index.html 1ファイル）",
+  "scripts": {
+    "test:unit": "node tests/midi_test.js && node tests/pitch_test.js && node tests/vibrato.js",
+    "test:e2e": "node tests/e2e2.js all",
+    "test:layout": "node tests/shot.js 390x664 375x548 412x780 1200x900"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
