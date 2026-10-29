@@ -158,7 +158,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
   text-align: center; padding: 20px; gap: 4px;
 }
 .empty[hidden] { display: none; }
-.empty-big { font-size: clamp(1.2rem, 3.5vw, 1.6rem); font-weight: 700; margin: 0; }
+.empty-steps { font-size: clamp(0.72rem, 2.9vw, 1rem); font-weight: 700; white-space: nowrap; }
 .empty p { margin: 0; max-width: 34em; }
 .empty .note { color: var(--muted); font-size: 0.88rem; }
 .empty .actions { justify-content: center; margin: 12px 0 6px; }
@@ -309,8 +309,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <div class="roll" id="rollWrap">
       <canvas id="roll" aria-label="音程バーと、あなたの声の高さの線"></canvas>
       <div class="empty" id="empty">
-        <p class="empty-big">MIDIファイルを開く</p>
-        <p>パートごとに音程バーが流れ、マイクで歌った声の高さが線で重なります。</p>
+        <p class="empty-steps">①デモを開く → ②パートを選ぶ → ③再生</p>
         <div class="actions">
           <button class="btn primary" id="openBtn2" type="button">MIDIを開く</button>
           <button class="btn" id="demoBtn2" type="button">デモ曲で試す</button>
