@@ -93,7 +93,8 @@ body {
   display: inline-flex; align-items: baseline; gap: 0.4em; touch-action: manipulation;
 }
 .chip .r { font-size: 0.75rem; color: var(--muted); }
-.chip[aria-checked="true"] { background: var(--chip-on); border-color: var(--bar); font-weight: 700; box-shadow: inset 0 0 0 1px var(--bar); }
+.chip[aria-checked="true"] { background: var(--chip-on); border-color: var(--pc, var(--bar)); font-weight: 700; box-shadow: inset 0 0 0 1px var(--pc, var(--bar)); }
+.chip .pdot { width: 10px; height: 10px; border-radius: 50%; background: var(--pc); flex: none; align-self: center; }
 .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 練習の段階 */
@@ -103,15 +104,22 @@ body {
 
 .parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 10px; }
 .part {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 8px;
-  background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px; padding: 6px 8px 8px 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0 8px;
+  background: var(--surface); border: 1.5px solid var(--line); border-left: 6px solid var(--pc); border-radius: 14px; padding: 6px 8px 8px 12px;
 }
-.part.mine { border-color: var(--bar); }
+.part.mine { border-color: var(--pc); }
 .pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mine-tag { display: none; font-size: 0.75rem; font-weight: 700; color: var(--bar-now); white-space: nowrap; margin-left: 0.5em; }
+.mine-tag { display: none; font-size: 0.75rem; font-weight: 700; color: var(--ink); white-space: nowrap; margin-left: 0.5em; }
 .part.mine .mine-tag { display: inline; }
 .part .vol { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
 .part .vol input { flex: 1; min-width: 0; }
+.part .vol output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+/* バーの色を選ぶ（丸い色見本） */
+.pcolor { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--line); padding: 3px; background: transparent; cursor: pointer; }
+.pcolor::-webkit-color-swatch-wrapper { padding: 0; }
+.pcolor::-webkit-color-swatch { border: none; border-radius: 50%; }
+.pcolor::-moz-color-swatch { border: none; border-radius: 50%; }
+.pcolor:disabled { opacity: 0.45; cursor: not-allowed; }
 .iconbtn {
   font: inherit; width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--line);
   background: transparent; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
@@ -310,7 +318,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
     </div>
     <div class="legend" aria-hidden="true">
-      <span><svg viewBox="0 0 26 12"><rect x="1" y="3" width="24" height="6" rx="3" fill="var(--bar)"/></svg>自分のパートの音</span>
+      <span><svg viewBox="0 0 26 12"><rect x="1" y="3" width="24" height="6" rx="3" fill="var(--mine, var(--bar))"/></svg>自分のパートの音</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 6 Q8 2 13 6 T24 6" stroke="var(--good)" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>合っている声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>外れている声</span>
     </div>
@@ -370,9 +378,9 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   <p class="tip">イヤホンで使ってください。スピーカーでガイドを流すと、マイクがその音を拾ってしまい、歌っていなくても「合っている」になります。③④の段階では自分のパートの音が鳴らないので、この影響は小さくなります。iPhoneでガイドが聞こえない時は、消音モード（マナーモード）を切ってみてください。</p>
 
   <details class="box" id="partMix">
-    <summary>パートごとの音量</summary>
-    <div class="parts" id="parts" role="group" aria-label="パートごとのガイド音量"></div>
-    <p class="tip">ここでの音量に、上の「練習の段階」の設定（自分のパートを小さく・消す）が重なります。</p>
+    <summary>パートごとの音量・色</summary>
+    <div class="parts" id="parts" role="group" aria-label="パートごとのガイド音量と色"></div>
+    <p class="tip">音量は最初が100%で、150%まで上げられます。ここでの音量に、上の「練習の段階」の設定（自分のパートを小さく・消す）が重なります。色の丸を押すと、音程バーの色を変えられます（色はこの端末に曲ごとに記憶します）。</p>
   </details>
 
   <section class="block" aria-labelledby="takesH">
@@ -798,7 +806,15 @@ function ensureCtx() {
     ctx.addEventListener('statechange', () => { if (ctx.state !== 'running' && T.playing) { pause(); say('音が止められたので一時停止しました。もう一度「再生」を押してください。', true); } });
     A.guide = ctx.createGain();
     A.guide.gain.value = S.guideVol;
-    A.guide.connect(ctx.destination);
+    // パートの音量を150%まで上げて和音が重なっても音が割れないよう、出口で大きすぎる音だけを抑える
+    A.limiter = ctx.createDynamicsCompressor();
+    A.limiter.threshold.value = -3;
+    A.limiter.knee.value = 0;
+    A.limiter.ratio.value = 20;
+    A.limiter.attack.value = 0.002;
+    A.limiter.release.value = 0.1;
+    A.guide.connect(A.limiter);
+    A.limiter.connect(ctx.destination);
     A.pitchGain = ctx.createGain();
     A.pitchGain.connect(A.guide);
     A.clickGain = ctx.createGain();
@@ -820,6 +836,23 @@ function ensureCtx() {
   }
   // iPhone では 'interrupted'（中断）という状態もあるので、running 以外なら再開を試みる
   if (A.ctx.state !== 'running') { try { const r = A.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ } }
+}
+// パートの色：MIDIのパート順に リード赤・1st橙・2nd青・3rd緑・ベース紫、6つ目からはボイパ等として灰色
+const PART_COLORS = ['#E5484D', '#F08C2E', '#3B82F6', '#2FA56A', '#8E5BD9'];
+const PART_GRAY = '#8A94A6';
+const defaultColor = (i) => PART_COLORS[i] || PART_GRAY;
+const VOL_UNIT = 0.7; // 音量100%のときの大きさ（最大150%）
+const COLOR_KEY = 'acapella-renshucho:colors:v1';
+function loadColors() {
+  try { const c = (JSON.parse(localStorage.getItem(COLOR_KEY) || '{}') || {})[songKey()]; return Array.isArray(c) ? c : []; } catch (e) { return []; }
+}
+function saveColors() {
+  try {
+    const all = JSON.parse(localStorage.getItem(COLOR_KEY) || '{}') || {};
+    const cs = S.pstate.map((st) => st.color);
+    if (cs.every((c, i) => c === defaultColor(i))) delete all[songKey()]; else all[songKey()] = cs;
+    localStorage.setItem(COLOR_KEY, JSON.stringify(all));
+  } catch (e) { /* 記憶できなくても、開いている間は使える */ }
 }
 const partLevel = (i) => (S.pstate[i] && !S.pstate[i].muted ? S.pstate[i].vol : 0) * modeFactor(i);
 function buildPartGains() {
@@ -1350,7 +1383,8 @@ function setSong(song, label) {
   if (T.playing) pause();
   S.song = song;
   S.label = label;
-  S.pstate = song.parts.map(() => ({ vol: 0.7, muted: false }));
+  S.pstate = song.parts.map((_, i) => ({ vol: VOL_UNIT, muted: false, color: defaultColor(i) }));
+  loadColors().forEach((c, i) => { if (S.pstate[i] && /^#[0-9a-f]{6}$/i.test(c)) S.pstate[i].color = c; });
   // 前に選んだパート名と同じパートがあれば、それを自分のパートにする（Bass の人は毎回 Bass、など）
   const remembered = song.parts.findIndex((pt) => pt.name === S.partName);
   S.sel = remembered >= 0 ? remembered : 0;
@@ -1420,6 +1454,10 @@ function renderParts() {
     c.setAttribute('role', 'radio');
     c.setAttribute('aria-checked', String(i === S.sel));
     c.tabIndex = i === S.sel ? 0 : -1;
+    c.style.setProperty('--pc', S.pstate[i].color);
+    const dot = document.createElement('span');
+    dot.className = 'pdot';
+    c.append(dot);
     const cn = document.createElement('span');
     cn.textContent = pt.name;
     const cr = document.createElement('span');
@@ -1428,10 +1466,11 @@ function renderParts() {
     c.append(cn, cr);
     c.addEventListener('click', () => selectPart(i));
     chips.append(c);
-    // パートごとの音量（折りたたみの中）
+    // パートごとの音量と色（折りたたみの中）
     const st = S.pstate[i];
     const row = document.createElement('div');
     row.className = 'part' + (i === S.sel ? ' mine' : '');
+    row.style.setProperty('--pc', st.color);
     const lab = document.createElement('div');
     lab.style.minWidth = '0';
     const nm = document.createElement('span');
@@ -1452,24 +1491,47 @@ function renderParts() {
     };
     setMute();
     mute.addEventListener('click', () => { st.muted = !st.muted; setMute(); applyGains(); });
+    const col = document.createElement('input');
+    col.type = 'color';
+    col.className = 'pcolor';
+    col.value = st.color;
+    col.title = 'バーの色';
+    col.setAttribute('aria-label', pt.name + 'のバーの色');
+    col.addEventListener('input', () => {
+      st.color = col.value;
+      row.style.setProperty('--pc', st.color);
+      c.style.setProperty('--pc', st.color);
+      syncMineColor();
+      kick();
+    });
+    col.addEventListener('change', saveColors);
     const volBox = document.createElement('div');
     volBox.className = 'vol';
     const vol = document.createElement('input');
     vol.type = 'range';
     vol.min = '0';
-    vol.max = '100';
-    vol.value = String(Math.round(st.vol * 100));
+    vol.max = '150';
+    vol.step = '5';
+    vol.value = String(Math.round(st.vol / VOL_UNIT * 100));
     vol.setAttribute('aria-label', pt.name + 'のガイド音量');
+    const vout = document.createElement('output');
+    vout.textContent = vol.value + '%';
     vol.addEventListener('input', () => {
-      st.vol = Number(vol.value) / 100;
+      st.vol = Number(vol.value) / 100 * VOL_UNIT;
+      vout.textContent = vol.value + '%';
       if (st.muted && st.vol > 0) { st.muted = false; setMute(); }
       applyGains();
     });
-    volBox.append(vol);
-    row.append(lab, mute, volBox);
+    volBox.append(vol, vout);
+    row.append(lab, col, mute, volBox);
     box.append(row);
   });
+  syncMineColor();
   updateRanges();
+}
+// 自分のパートの色を、凡例などページの他の場所にも伝える
+function syncMineColor() {
+  if (S.song) document.documentElement.style.setProperty('--mine', S.pstate[S.sel].color);
 }
 function updateRanges() {
   if (!S.song) return;
@@ -1485,8 +1547,9 @@ function selectPart(i) {
   S.trail = [];
   S.score = { n: 0, ok: 0 };
   S.passes = [];
-  document.querySelectorAll('.chip').forEach((el, j) => { el.setAttribute('aria-checked', String(j === i)); el.tabIndex = j === i ? 0 : -1; });
+  document.querySelectorAll('#chips .chip').forEach((el, j) => { el.setAttribute('aria-checked', String(j === i)); el.tabIndex = j === i ? 0 : -1; });
   document.querySelectorAll('.part').forEach((el, j) => el.classList.toggle('mine', j === i));
+  syncMineColor();
   applyGains(); // 練習の段階は「自分のパート」に効くので、音量を付け直す
   renderPasses();
   savePrefs();
@@ -1990,10 +2053,23 @@ function draw() {
       g.fill();
     }
   };
-  if (S.showOthers) S.song.parts.forEach((pt, i) => { if (i !== S.sel) drawNotes(pt.notes, () => C.barOther); });
+  // ほかのパートは、そのパートの色をうすく。自分のパートは濃く、今の音は縁取りする
+  if (S.showOthers) {
+    g.globalAlpha = 0.3;
+    S.song.parts.forEach((pt, i) => { if (i !== S.sel) drawNotes(pt.notes, () => S.pstate[i].color); });
+  }
   const mine = S.song.parts[S.sel];
+  const myColor = S.pstate[S.sel].color;
   g.globalAlpha = 1;
-  drawNotes(mine.notes, (n) => (n.s <= tv && tv < n.e ? C.barNow : C.bar));
+  drawNotes(mine.notes, () => myColor);
+  for (const n of mine.notes) {
+    if (n.s > tv) break;
+    if (tv >= n.e) continue;
+    g.strokeStyle = C.ink;
+    g.lineWidth = 2;
+    rrect(X(n.s), Y(n.m + tr) - barH / 2, Math.max(3, X(n.e) - X(n.s) - 1.5), barH, barH / 2);
+    g.stroke();
+  }
   // 通り過ぎた音符を少しうすく
   g.fillStyle = C.roll;
   g.globalAlpha = 0.35;
@@ -2121,7 +2197,7 @@ function draw() {
     const show = rowH >= 12 ? true : rowH >= 7 ? !isBlack(m) : pc(m) === 0;
     if (!show) continue;
     const isT = tg != null && Math.round(tg) === m;
-    g.fillStyle = isT ? C.barNow : pc(m) === 0 ? C.ink : C.muted;
+    g.fillStyle = isT ? S.pstate[S.sel].color : pc(m) === 0 ? C.ink : C.muted;
     if (isT) g.font = '700 ' + fs + 'px ' + FONT;
     g.fillText(noteName(m), gut - 8, Y(m));
     if (isT) g.font = '500 ' + fs + 'px ' + FONT;

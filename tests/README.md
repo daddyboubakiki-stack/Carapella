@@ -15,6 +15,7 @@
 | `npm run test:unit` | MIDIの読み込み（期待値と比較）、音程推定の精度、ビブラートの判定 | 不要 |
 | `npm run test:e2e` | 実ブラウザで操作する総合テスト（下の6項目）。5分ほどかかります | Chromium |
 | `npm run test:marks` | しおり（ピアノロールで区間を作る・選ぶ・消す・記憶）と、「ずれ」欄の高さが変わらないこと（画面の揺れ） | Chromium |
+| `npm run test:parts` | パートごとの音量（最大150%）と、バーの色（パート順の初期色・変更・記憶） | Chromium |
 | `npm run test:layout` | スマホ幅で、音程バーと下の操作バーが同じ画面に収まるか＋画面写真 | Chromium |
 
 `node tests/e2e2.js <名前>` で一部だけ実行できます：
