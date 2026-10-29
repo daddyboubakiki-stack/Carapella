@@ -450,7 +450,7 @@ function parseMidi(input) {
 
   function readTrack(start, end, idx) {
     let q = start, tick = 0, running = 0;
-    const tr = { idx, name: '', inst: '', notes: [], lyrics: [], endTick: 0 };
+    const tr = { idx, name: '', inst: '', notes: [], lyrics: [], texts: [], endTick: 0 };
     const open = new Map();
     const vlq = () => {
       let v = 0, b = 0, n = 0;
@@ -483,6 +483,7 @@ function parseMidi(input) {
         else if (type === 0x03 && !tr.name) tr.name = decodeText(data).replace(/\0/g, '').trim();
         else if (type === 0x04 && !tr.inst) tr.inst = decodeText(data).replace(/\0/g, '').trim();
         else if (type === 0x05) tr.lyrics.push({ tick, text: decodeText(data) });
+        else if (type === 0x01) tr.texts.push({ tick, text: decodeText(data) });
         else if (type === 0x2F) break;
       } else if (st === 0xF0 || st === 0xF7) {
         running = 0;
@@ -550,7 +551,13 @@ function parseMidi(input) {
     return s.sec + (tick - s.tick) * s.us / 1e6 / tpq;
   };
 
+  // カラオケ形式（.kar）：歌詞はテキストイベント（meta 0x01）。「@」で始まるのは見出しなので除く
+  if (tracks.some((tr) => tr.texts.some((x) => x.text.startsWith('@K')))) {
+    for (const tr of tracks) tr.lyrics.push(...tr.texts.filter((x) => !x.text.startsWith('@')));
+  }
+
   const parts = [];
+  const orphan = []; // 音符のないトラック（.kar の Words など）の歌詞
   let maxTick = 0;
   for (const tr of tracks) {
     const chans = [...new Set(tr.notes.map((n) => n.ch))].filter((c) => c !== 9).sort((a, b) => a - b);
@@ -570,7 +577,8 @@ function parseMidi(input) {
     // 歌詞は同じトラックのパートへ（同じ時刻に音符が始まるパートを優先）
     for (const ly of tr.lyrics) {
       const text = ly.text.replace(/^[\/\\]+/, '').replace(/[\r\n]+/g, ' ').trim();
-      if (!text || !mine.length) continue;
+      if (!text) continue;
+      if (!mine.length) { orphan.push({ tick: ly.tick, text }); continue; }
       let target = mine[0];
       if (mine.length > 1) {
         const hit = mine.find((pt) => pt.notes.some((n) => n.st === ly.tick));
@@ -580,6 +588,11 @@ function parseMidi(input) {
     }
   }
   if (!parts.length) throw new Error('no_notes');
+  // 音符のないトラックの歌詞は、同じ時刻に音符が始まるパート、なければ最初のパートへ
+  for (const ly of orphan) {
+    const target = parts.find((pt) => pt.notes.some((n) => n.st === ly.tick)) || parts[0];
+    target.lyrics.push({ t: toSec(ly.tick), text: ly.text });
+  }
   for (const pt of parts) {
     for (const n of pt.notes) delete n.st;
     pt.lyrics.sort((a, b) => a.t - b.t);

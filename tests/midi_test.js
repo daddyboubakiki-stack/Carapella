@@ -11,7 +11,7 @@ for (const f of fs.readdirSync(dir).filter((x) => !x.endsWith('.json')).sort()) 
   try {
     const s = parseMidi(fs.readFileSync(path.join(dir, f)));
     r = {
-      title: s.title, bpm: s.bpm, duration: +s.duration.toFixed(3), bars: s.bars.length,
+      title: s.title, bpm: s.bpm, duration: +s.duration.toFixed(3), bars: s.bars.filter((b) => b.t < s.duration - 0.01).length, // 曲の終わりちょうどの小節線は数えない（index.html の barCount と同じ）
       parts: s.parts.map((p) => ({ name: p.name, notes: p.notes.length, lyrics: p.lyrics.length, first: p.notes[0] && [+p.notes[0].s.toFixed(3), p.notes[0].m], last: p.notes.length && +p.notes[p.notes.length - 1].e.toFixed(3) })),
       lyricsSample: s.parts.flatMap((p) => p.lyrics.slice(0, 4).map((l) => l.text)),
     };
