@@ -257,6 +257,8 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .plot-help { position: relative; text-align: right; margin-top: 2px; }
 .plot-help > summary { display: inline-block; padding: 2px 0; }
 .plot-help[open] > p { top: auto; bottom: 100%; text-align: left; font-size: 0.8rem; }
+/* アドレスバーが出入りしても変わらない、小さい方の表示領域を測る。 */
+.viewport-probe { position: fixed; top: 0; left: 0; width: 0; height: 100vh; height: 100svh; visibility: hidden; pointer-events: none; contain: strict; }
 .timeline { flex-direction: column; align-items: stretch !important; gap: 2px !important; }
 .seekbox { flex: none; width: 100%; }
 .seektrack input { width: 100%; margin-inline: 0; }
@@ -320,22 +322,23 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .seg { flex-wrap: wrap; border-radius: 12px; }
   .seg label { padding: 5px 8px; }
 }
-@media (max-width: 700px) and (max-height: 620px) {
-  .has-song .top h1, .has-song .song-meta { display: none; }
-  .has-song .top { min-height: 36px; }
-  .has-song .file-menu > summary { padding: 5px 8px; }
-  .part-select { min-height: 32px; padding-block: 2px; }
-  .read .v { font-size: 1.1rem; }
-  .read .k { font-size: 0.64rem; }
-  .read { padding-block: 2px; }
-  .transport .main .btn { height: 48px; }
-  .legend { gap: 2px 6px; font-size: 0.6rem; }
-  .legend svg { width: 13px; }
+@media (max-width: 700px) {
+  .compact-practice.has-song .top h1, .compact-practice.has-song .song-meta { display: none; }
+  .compact-practice.has-song .top { min-height: 36px; }
+  .compact-practice.has-song .file-menu > summary { padding: 5px 8px; }
+  .compact-practice .part-select { min-height: 32px; padding-block: 2px; }
+  .compact-practice .read .v { font-size: 1.1rem; }
+  .compact-practice .read .k { font-size: 0.64rem; }
+  .compact-practice .read { padding-block: 2px; }
+  .compact-practice .transport .main .btn { height: 48px; }
+  .compact-practice .legend { gap: 2px 6px; font-size: 0.6rem; }
+  .compact-practice .legend svg { width: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
+<div class="viewport-probe" id="viewportProbe" aria-hidden="true"></div>
 <div class="wrap">
   <header class="top">
     <div>
@@ -2057,14 +2060,18 @@ function requestPracticeLayout() {
   layoutFrame = requestAnimationFrame(() => { layoutFrame = 0; fitPractice(); });
 }
 function fitPractice() {
-  if (!S.song || !matchMedia('(max-width: 700px)').matches) {
+  const mobile = matchMedia('(max-width: 700px)').matches;
+  const viewport = $('viewportProbe').getBoundingClientRect().height;
+  // 高さの境界も svh に統一する。動く viewport のメディア条件では切り替えない。
+  document.body.classList.toggle('compact-practice', mobile && viewport <= 620);
+  if (!S.song || !mobile) {
     document.documentElement.style.removeProperty('--practice-roll-height');
     return;
   }
   const practice = $('practice'), roll = $('rollWrap');
-  // offsetTop はスクロールしても変わらない。ブラウザの表示領域だけ更新する。
-  const viewport = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  const top = practice.getBoundingClientRect().top + window.scrollY;
+  // ドキュメント上の位置と svh は、ページのスクロールで変わらない。
+  let top = 0;
+  for (let el = practice; el; el = el.offsetParent) top += el.offsetTop;
   const rest = practice.getBoundingClientRect().height - roll.getBoundingClientRect().height;
   const available = Math.floor(viewport - top - rest - 10);
   const height = clamp(available, 110, 640);
@@ -2617,7 +2624,6 @@ matchMedia('(max-width: 700px)').addEventListener('change', (e) => {
   $('fileMenu').open = !e.matches || !S.song;
   requestPracticeLayout();
 });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', requestPracticeLayout);
 document.addEventListener('toggle', requestPracticeLayout, true);
 $('partSelect').addEventListener('change', (e) => selectPart(Number(e.target.value)));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
