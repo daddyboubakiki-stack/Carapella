@@ -149,7 +149,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 
 .roll {
   position: relative; height: clamp(260px, 52vh, 560px); border-radius: 18px; overflow: hidden;
-  border: 1.5px solid var(--line); background: var(--roll); touch-action: pan-y;
+  border: 1.5px solid var(--line); background: var(--roll); touch-action: pinch-zoom;
 }
 .roll canvas { display: block; width: 100%; height: 100%; cursor: grab; }
 .roll.drop { outline: 3px dashed var(--bar); outline-offset: -10px; }
@@ -257,6 +257,10 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .plot-help { position: relative; text-align: right; margin-top: 2px; }
 .plot-help > summary { display: inline-block; padding: 2px 0; }
 .plot-help[open] > p { top: auto; bottom: 100%; text-align: left; font-size: 0.8rem; }
+.plot-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; min-height: 30px; }
+.plot-status { margin-right: auto; font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.plot-controls .btn { min-height: 30px; padding: 2px 8px; font-size: 0.72rem; }
+.roll canvas:active { cursor: grabbing; }
 /* アドレスバーが出入りしても変わらない、小さい方の表示領域を測る。 */
 .viewport-probe { position: fixed; top: 0; left: 0; width: 0; height: 100vh; height: 100svh; visibility: hidden; pointer-events: none; contain: strict; }
 .timeline { flex-direction: column; align-items: stretch !important; gap: 2px !important; }
@@ -390,8 +394,13 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <div class="read diff" id="hDiffBox"><span class="k">ずれ</span><span class="v" id="hDiff">—</span><span class="verdict" id="hVerdict"></span></div>
     </div>
 
+    <div class="plot-controls" id="plotControls" hidden>
+      <span class="plot-status" id="plotStatus" role="status">自動追従中</span>
+      <button class="btn small" id="followBtn" type="button" disabled>今の位置へ</button>
+      <button class="btn small" id="pitchViewReset" type="button" disabled>音域を戻す</button>
+    </div>
     <div class="roll" id="rollWrap">
-      <canvas id="roll" aria-label="音程バーと、あなたの声の高さの線"></canvas>
+      <canvas id="roll" tabindex="0" aria-label="音程バーと、あなたの声の高さの線" aria-describedby="plotHelpText"></canvas>
       <span id="rangeNotice" class="range-notice" hidden></span>
       <span id="voiceNotice" class="voice-notice" hidden></span>
       <div class="empty" id="empty">
@@ -409,7 +418,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p>停止中はグラフを横になぞって再生位置を動かせます。太いバーが自分のパート、淡いバーがほかのパートです。上下の範囲外にも音がある場合は案内を表示します。声が音域を外れたときは、端の印と「表示より上・下」で知らせます。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。しおりは「しおりを作る」を押してから指定します。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -1181,10 +1190,11 @@ async function keepAwake(on) {
 // スマホで再生を始めた時、音程バーが見えていなければ見える位置までスクロールする
 function ensureStageVisible() {
   const roll = $('rollWrap').getBoundingClientRect();
+  const controlsTop = $('plotControls').getBoundingClientRect().top;
   const barTop = $('transport').getBoundingClientRect().top;
   const visBottom = Math.min(window.innerHeight, barTop);
-  if (roll.top >= 0 && roll.bottom <= visBottom + 1) return;
-  const stageTop = $('stage').getBoundingClientRect().top;
+  if (controlsTop >= 0 && roll.bottom <= visBottom + 1) return;
+  const stageTop = controlsTop;
   const dy = roll.bottom - stageTop > visBottom - 8 ? roll.bottom - visBottom : stageTop - 8;
   window.scrollBy({ top: dy, behavior: 'smooth' });
 }
@@ -1218,6 +1228,7 @@ function togglePlay() {
 }
 function seekTo(p) {
   if (!S.song) return;
+  resumeFollow();
   p = clamp(p, 0, S.song.duration);
   if (T.playing && T.mode === 'live' && !R) { play(p); return; }
   if (T.playing) pause();
@@ -1503,6 +1514,13 @@ function demoSong() {
 function setSong(song, label) {
   if (T.playing) pause();
   S.song = song;
+  view.follow = true;
+  view.time = 0;
+  view.pitchOffset = 0;
+  view.wheelPitch = 0;
+  drag = null;
+  $('plotControls').hidden = false;
+  syncViewUI();
   S.label = label;
   S.pstate = song.parts.map((_, i) => ({ vol: VOL_UNIT, muted: false, color: defaultColor(i), tone: 'soft' }));
   const pp = loadPartPrefs();
@@ -1702,6 +1720,9 @@ function selectPart(i) {
   if (R || !S.song) return; // 録音中は切り替えない（その録音の判定記録が消えるため）
   if (!Number.isInteger(i) || i < 0 || i >= S.song.parts.length) return;
   S.sel = i;
+  view.pitchOffset = 0;
+  view.wheelPitch = 0;
+  syncViewUI();
   $('partSelect').value = String(i);
   S.partName = S.song.parts[i].name;
   S.trail = [];
@@ -1748,6 +1769,7 @@ function nudgeLoop(which, d) {
 }
 function afterLoopChange(restart) {
   syncLoopUI();
+  if (looping() && restart) resumeFollow();
   if (T.playing && T.mode === 'live') {
     if (looping() && restart) play(loopRange()[0], null, { count: true });
     else if (!looping()) T.end = Infinity;
@@ -1827,7 +1849,11 @@ function toggleMarking() {
   if (!S.song || R) return;
   if (marking) { marking = null; say(''); }
   else {
+    const shown = displayTime();
     if (T.playing) pause();
+    view.time = shown;
+    view.follow = false;
+    syncViewUI();
     marking = { a: null, sel: null };
     say('');
     ensureStageVisible();
@@ -2042,7 +2068,30 @@ function updateReadouts() {
 const cv = $('roll');
 const g = cv.getContext('2d');
 const wrap = $('rollWrap');
-const view = { w: 0, h: 0, dpr: 1 };
+const view = { w: 0, h: 0, dpr: 1, follow: true, time: 0, pitchOffset: 0, wheelPitch: 0 };
+// 表示位置は再生の T.pos / T.t0 と独立。手動で動かしても音は飛ばさない。
+function displayTime() { return view.follow ? viewTime() : view.time; }
+function syncViewUI() {
+  $('plotStatus').textContent = view.follow ? '自動追従中' : '手動表示';
+  $('followBtn').disabled = view.follow;
+  $('pitchViewReset').disabled = view.pitchOffset === 0;
+  $('rollWrap').dataset.follow = String(view.follow);
+}
+function resumeFollow() {
+  view.follow = true;
+  syncViewUI();
+  kick();
+}
+function panToTime(t) {
+  view.time = clamp(t, 0, S.song.duration);
+  view.follow = false;
+  syncViewUI();
+}
+function shiftPitch(offset) {
+  const [lo, hi] = baseViewRange();
+  view.pitchOffset = clamp(Math.round(offset), -12 - lo, 139 - hi);
+  syncViewUI();
+}
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
@@ -2099,12 +2148,16 @@ function rrect(x, y, w, h, r) {
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
 }
-function viewRange() {
+function baseViewRange() {
   const pt = S.song.parts[S.sel];
   const tr = curTr();
   let lo = pt.min + tr - 3, hi = pt.max + tr + 3;
   if (hi - lo < 14) { const c = (hi + lo) / 2; lo = Math.floor(c - 7); hi = lo + 14; }
   return [lo, hi];
+}
+function viewRange() {
+  const [lo, hi] = baseViewRange();
+  return [lo + view.pitchOffset, hi + view.pitchOffset];
 }
 function marker(x, y, k) {
   if (k === 'ok') {
@@ -2150,13 +2203,13 @@ const GUT = 56; // ピアノロール左の音名の幅
 // ピアノロール上の横位置 x（CSSピクセル）→ 曲の時刻
 function pixelsPerSecond() {
   if (!matchMedia('(max-width: 700px)').matches || zoomTouched || !S.song) return S.zoom;
-  const beats = S.song.bars[barIndexAt(viewTime())]?.num || 4;
+  const beats = S.song.bars[barIndexAt(displayTime())]?.num || 4;
   const seconds = 2 * beats * 60 / (S.song.bpm || 100);
   return clamp((view.w - GUT) * 0.7 / seconds, 25, 140);
 }
 function timeAtX(x) {
   const playX = GUT + (view.w - GUT) * 0.3;
-  return clamp(viewTime() + (x - playX) / pixelsPerSecond(), 0, S.song.duration);
+  return clamp(displayTime() + (x - playX) / pixelsPerSecond(), 0, S.song.duration);
 }
 // なぞった位置を、近くの音符の始まり・終わりや小節線に合わせる（12ピクセル以内）
 function snapTime(t) {
@@ -2184,8 +2237,12 @@ function draw() {
   const Y = (m) => top + (hi + 0.5 - m) * rowH;
   const px = pixelsPerSecond();
   const playX = gut + (W - gut) * 0.3;
-  const tv = viewTime();
+  const tv = displayTime();
+  const playingTime = viewTime();
   const X = (t) => playX + (t - tv) * px;
+  wrap.dataset.plotTime = tv.toFixed(3);
+  wrap.dataset.lowNote = String(lo);
+  wrap.dataset.highNote = String(hi);
   const t0 = tv - (playX - gut) / px - 0.2, t1 = tv + (W - playX) / px + 0.2;
   const tr = curTr();
 
@@ -2278,8 +2335,8 @@ function draw() {
   g.globalAlpha = 1;
   drawNotes(mine.notes, mineColor);
   for (const n of mine.notes) {
-    if (n.s > tv) break;
-    if (tv >= n.e) continue;
+    if (n.s > playingTime) break;
+    if (playingTime >= n.e) continue;
     g.strokeStyle = C.ink;
     g.lineWidth = 2;
     rrect(X(n.s), Y(n.m + tr) - barH / 2, Math.max(3, X(n.e) - X(n.s) - 1.5), barH, barH / 2);
@@ -2336,17 +2393,18 @@ function draw() {
   }
   flush();
   // 再生位置の線
+  const liveX = X(playingTime);
   g.fillStyle = C.ink;
   g.globalAlpha = 0.55;
-  g.fillRect(Math.round(playX) - 1, top, 2, bot - top);
+  g.fillRect(Math.round(liveX) - 1, top, 2, bot - top);
   g.globalAlpha = 1;
   g.beginPath();
-  g.moveTo(playX - 6, top - 7); g.lineTo(playX + 6, top - 7); g.lineTo(playX, top);
+  g.moveTo(liveX - 6, top - 7); g.lineTo(liveX + 6, top - 7); g.lineTo(liveX, top);
   g.closePath(); g.fill();
   // 今の声
   const L = S.live;
   if (L && L.midi != null && T.mode !== 'review') {
-    let mx = playX;
+    let mx = liveX;
     const last = S.trail[S.trail.length - 1];
     if (T.playing && last && last.m != null) mx = X(last.t);
     const raw = Y(L.midi);
@@ -2468,7 +2526,7 @@ $('pitchBtn').addEventListener('click', giveStartNote);
 const seek = $('seek');
 seek.addEventListener('input', () => {
   seeking = true;
-  if (!T.playing) { T.pos = Number(seek.value); kick(); }
+  if (!T.playing) { T.pos = Number(seek.value); resumeFollow(); }
 });
 seek.addEventListener('change', () => { seeking = false; seekTo(Number(seek.value)); });
 $('guideVol').addEventListener('input', (e) => {
@@ -2503,27 +2561,49 @@ $('ec').addEventListener('change', async (e) => {
   savePrefs();
   if (A.mic) { micOff(); await micOn(); }
 });
-// 曲を止めている時は、横にドラッグして位置を動かせる
+// 表示だけを移動する。縦の指ぶれで追従を止めないよう、最初の方向を判別する。
+function beginPan(x, y, id) {
+  const [lo, hi] = viewRange();
+  drag = { id, x, y, axis: null, time: displayTime(), pitch: view.pitchOffset,
+    rowH: Math.max(1, (view.h - 30) / (hi - lo + 1)), scale: pixelsPerSecond(), horizontal: false };
+}
+function movePan(x, y) {
+  const dx = x - drag.x, dy = y - drag.y;
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (!drag.axis) {
+    if (Math.max(ax, ay) < 6) return;
+    drag.axis = ax > ay * 1.35 ? 'x' : ay > ax * 1.35 ? 'y' : 'both';
+  }
+  // 意図的に方向を変えた時は斜め移動にする。小さな指ぶれでは切り替えない。
+  if (drag.axis === 'y' && ax > Math.max(18, ay * 0.75)) drag.axis = 'both';
+  if (drag.axis === 'x' && ay > Math.max(18, ax * 0.75)) drag.axis = 'both';
+  if (drag.axis !== 'y') {
+    if (!drag.horizontal) { drag.time = displayTime(); drag.horizontal = true; }
+    panToTime(drag.time - dx / drag.scale);
+  }
+  if (drag.axis !== 'x') shiftPitch(drag.pitch + dy / drag.rowH);
+  kick();
+}
+// しおりモードの座標変換も、再生時刻ではなく現在の表示時刻を使う。
 // しおりを作っている時は、なぞった範囲（またはタップ2回）で始まりと終わりを決める
 cv.addEventListener('pointerdown', (e) => {
-  if (!S.song) return;
+  if (!S.song || e.button !== 0 || e.isPrimary === false) return;
   if (marking) {
     const x = e.clientX - cv.getBoundingClientRect().left;
     if (x < GUT) return;
     const t = snapTime(timeAtX(x));
-    drag = { x: e.clientX, mark: true, t };
+    drag = { id: e.pointerId, x: e.clientX, mark: true, t };
     if (marking.a == null) marking.sel = [t, t];
     cv.setPointerCapture(e.pointerId);
     kick();
     return;
   }
-  if (T.playing) return;
-  drag = { x: e.clientX, pos: T.pos };
+  beginPan(e.clientX, e.clientY, e.pointerId);
   cv.setPointerCapture(e.pointerId);
   kick();
 });
 cv.addEventListener('pointermove', (e) => {
-  if (!drag) return;
+  if (!drag || drag.id !== e.pointerId) return;
   if (drag.mark) {
     if (Math.abs(e.clientX - drag.x) < 6) return;
     drag.moved = true;
@@ -2532,11 +2612,11 @@ cv.addEventListener('pointermove', (e) => {
     kick();
     return;
   }
-  T.pos = clamp(drag.pos - (e.clientX - drag.x) / pixelsPerSecond(), 0, S.song.duration);
-  kick();
+  movePan(e.clientX, e.clientY);
 });
 const endDrag = () => { drag = null; kick(); };
-cv.addEventListener('pointerup', () => {
+cv.addEventListener('pointerup', (e) => {
+  if (!drag || drag.id !== e.pointerId) return;
   if (drag && drag.mark && marking) {
     const d = drag;
     drag = null;
@@ -2551,6 +2631,33 @@ cv.addEventListener('pointerup', () => {
   endDrag();
 });
 cv.addEventListener('pointercancel', () => { if (drag && drag.mark && marking) marking.sel = null; endDrag(); });
+cv.addEventListener('lostpointercapture', () => { if (drag && drag.mark && marking) marking.sel = null; endDrag(); });
+$('followBtn').addEventListener('click', resumeFollow);
+$('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; syncViewUI(); kick(); });
+cv.addEventListener('wheel', (e) => {
+  if (!S.song || e.ctrlKey) return; // ブラウザのピンチ拡大は妨げない。
+  e.preventDefault();
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? view.h : 1;
+  const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
+  const dy = (e.shiftKey ? 0 : e.deltaY) * unit;
+  if (Math.abs(dx) > 1) panToTime(displayTime() + dx / pixelsPerSecond());
+  if (dy) {
+    const [lo, hi] = viewRange();
+    view.wheelPitch -= dy / Math.max(1, (view.h - 30) / (hi - lo + 1));
+    const steps = Math.trunc(view.wheelPitch);
+    if (steps) { shiftPitch(view.pitchOffset + steps); view.wheelPitch -= steps; }
+  }
+  kick();
+}, { passive: false });
+cv.addEventListener('keydown', (e) => {
+  if (!S.song) return;
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home'].includes(e.key)) return;
+  e.preventDefault();
+  if (e.key === 'Home') resumeFollow();
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') shiftPitch(view.pitchOffset + (e.key === 'ArrowUp' ? 1 : -1));
+  else panToTime(displayTime() + (e.key === 'ArrowRight' ? 1 : -1));
+  kick();
+});
 // ファイルのドロップ
 let dragDepth = 0;
 document.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; wrap.classList.add('drop'); });
