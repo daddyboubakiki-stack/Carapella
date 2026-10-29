@@ -130,7 +130,10 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .read .k { font-size: 0.8rem; color: var(--muted); display: block; }
 .read .v { font-size: clamp(1.25rem, 4.2vw, 2.1rem); font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .read .u { font-size: 0.8rem; color: var(--muted); margin-left: 0.15em; font-weight: 500; }
-.verdict { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); min-height: 1.4em; }
+/* 数字や判定が変わっても欄の高さが変わらないよう、高さを決めて1行に収める（変わると下の音程バーごと揺れる） */
+.read .v { height: 1.15em; }
+.verdict { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); height: 1.4em; white-space: nowrap; overflow: hidden; }
+.verdict span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .verdict svg { width: 14px; height: 14px; flex: none; }
 .read.diff.ok .v, .read.diff.ok .verdict { color: var(--good); }
 .read.diff.off .v, .read.diff.off .verdict { color: var(--off); }
@@ -176,6 +179,20 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .stepper output { min-width: 2.2em; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stepper .iconbtn { width: 32px; height: 32px; }
 .passes { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* しおり（ピアノロールで指定した区間） */
+.markrow { flex-basis: 100%; display: flex; align-items: center; gap: 6px; overflow-x: auto; min-width: 0; padding: 2px; scrollbar-width: thin; }
+.markrow .btn { flex: none; }
+.marks { display: flex; align-items: center; gap: 6px; flex: none; }
+.mark { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.mark .chip { min-height: 34px; padding: 0.2em 0.75em; font-size: 0.85rem; }
+.mark .iconbtn { width: 28px; height: 28px; }
+.btn.small.marking { background: var(--note-bg); border-color: var(--loop-edge); }
+.seektrack { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.seektrack input { flex: 1; min-width: 0; }
+/* 再生バーの下に、しおりの範囲を細い帯で出す（つまみの半径ぶん内側から） */
+.seekmarks { position: absolute; left: 8px; right: 8px; bottom: -1px; height: 5px; pointer-events: none; }
+.seekmarks span { position: absolute; top: 0; bottom: 0; min-width: 3px; border-radius: 3px; background: var(--loop-edge); opacity: 0.45; }
+.seekmarks span.on { opacity: 1; }
 .passes b { color: var(--good); }
 
 .mixer { display: flex; flex-wrap: wrap; gap: 6px 26px; align-items: center; margin: 14px 0 4px; }
@@ -312,7 +329,10 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <div class="row">
       <button class="btn small toggle" id="loopBtn" type="button" aria-pressed="false" aria-controls="loopBox" disabled><span class="dot"></span>区間リピート</button>
       <div class="seekbox">
-        <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="再生位置" disabled>
+        <div class="seektrack">
+          <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="再生位置" disabled>
+          <div class="seekmarks" id="seekMarks" aria-hidden="true"></div>
+        </div>
         <span class="time" id="timeLbl">0:00 / 0:00</span>
       </div>
     </div>
@@ -331,6 +351,10 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </span>
       <span>小節</span>
       <span class="passes" id="passes"></span>
+      <div class="markrow">
+        <button class="btn small" id="markBtn" type="button" aria-pressed="false" title="音程バーの上をなぞって、練習したい所をしおりにします">＋ しおりを作る</button>
+        <div class="marks" id="marks" role="radiogroup" aria-label="しおり"></div>
+      </div>
     </div>
   </div>
 
@@ -450,7 +474,7 @@ function parseMidi(input) {
 
   function readTrack(start, end, idx) {
     let q = start, tick = 0, running = 0;
-    const tr = { idx, name: '', inst: '', notes: [], lyrics: [], endTick: 0 };
+    const tr = { idx, name: '', inst: '', notes: [], lyrics: [], texts: [], endTick: 0 };
     const open = new Map();
     const vlq = () => {
       let v = 0, b = 0, n = 0;
@@ -483,6 +507,7 @@ function parseMidi(input) {
         else if (type === 0x03 && !tr.name) tr.name = decodeText(data).replace(/\0/g, '').trim();
         else if (type === 0x04 && !tr.inst) tr.inst = decodeText(data).replace(/\0/g, '').trim();
         else if (type === 0x05) tr.lyrics.push({ tick, text: decodeText(data) });
+        else if (type === 0x01) tr.texts.push({ tick, text: decodeText(data) });
         else if (type === 0x2F) break;
       } else if (st === 0xF0 || st === 0xF7) {
         running = 0;
@@ -550,7 +575,13 @@ function parseMidi(input) {
     return s.sec + (tick - s.tick) * s.us / 1e6 / tpq;
   };
 
+  // カラオケ形式（.kar）：歌詞はテキストイベント（meta 0x01）。「@」で始まるのは見出しなので除く
+  if (tracks.some((tr) => tr.texts.some((x) => x.text.startsWith('@K')))) {
+    for (const tr of tracks) tr.lyrics.push(...tr.texts.filter((x) => !x.text.startsWith('@')));
+  }
+
   const parts = [];
+  const orphan = []; // 音符のないトラック（.kar の Words など）の歌詞
   let maxTick = 0;
   for (const tr of tracks) {
     const chans = [...new Set(tr.notes.map((n) => n.ch))].filter((c) => c !== 9).sort((a, b) => a - b);
@@ -570,7 +601,8 @@ function parseMidi(input) {
     // 歌詞は同じトラックのパートへ（同じ時刻に音符が始まるパートを優先）
     for (const ly of tr.lyrics) {
       const text = ly.text.replace(/^[\/\\]+/, '').replace(/[\r\n]+/g, ' ').trim();
-      if (!text || !mine.length) continue;
+      if (!text) continue;
+      if (!mine.length) { orphan.push({ tick: ly.tick, text }); continue; }
       let target = mine[0];
       if (mine.length > 1) {
         const hit = mine.find((pt) => pt.notes.some((n) => n.st === ly.tick));
@@ -580,6 +612,11 @@ function parseMidi(input) {
     }
   }
   if (!parts.length) throw new Error('no_notes');
+  // 音符のないトラックの歌詞は、同じ時刻に音符が始まるパート、なければ最初のパートへ
+  for (const ly of orphan) {
+    const target = parts.find((pt) => pt.notes.some((n) => n.st === ly.tick)) || parts[0];
+    target.lyrics.push({ t: toSec(ly.tick), text: ly.text });
+  }
   for (const pt of parts) {
     for (const n of pt.notes) delete n.st;
     pt.lyrics.sort((a, b) => a.t - b.t);
@@ -707,7 +744,7 @@ const S = {
   guideVol: 0.8, rate: 1, transpose: 0,
   tol: 50, octaveFree: false, showOthers: true, naming: 'en', ec: false, latMs: 80, zoom: 140,
   trail: [], score: { n: 0, ok: 0 }, live: null, level: 0, takes: [], takeNo: 0,
-  mode: 1, countIn: true, loop: { on: false, a: 0, b: 1 }, passes: [], partName: '',
+  mode: 1, countIn: true, loop: { on: false, a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
 };
 const T = { playing: false, mode: 'live', pos: 0, p0: 0, t0: 0, rate: 1, tr: 0, next: 0, timer: 0, reviewSrc: null, reviewTake: null, cStart: 0, cBeat: 0, cN: 0, end: Infinity };
 const A = { ctx: null, guide: null, pitchGain: null, reviewGain: null, partGains: [], wave: null, active: new Set(), mic: null };
@@ -874,6 +911,7 @@ function barCount() {
 }
 const looping = () => !!(S.song && S.loop.on && S.song.bars.length);
 function loopRange() {
+  if (S.loop.t) return S.loop.t.slice();
   const last = barCount() - 1;
   const a = clamp(S.loop.a, 0, last), b = clamp(S.loop.b, a, last);
   return [S.song.bars[a].t, Math.min(barEnd(b), S.song.duration)];
@@ -1321,7 +1359,9 @@ function setSong(song, label) {
   S.takes = [];
   S.takeNo = 0;
   S.passes = [];
-  S.loop = { on: false, a: 0, b: Math.min(1, barCount() - 1) };
+  S.loop = { on: false, a: 0, b: Math.min(1, barCount() - 1), t: null, mark: null };
+  S.marks = loadMarks();
+  marking = null;
   S.events = [];
   song.parts.forEach((pt, i) => pt.notes.forEach((n) => S.events.push({ s: n.s, e: n.e, m: n.m, v: n.v, part: i })));
   S.events.sort((a, b) => a.s - b.s);
@@ -1467,7 +1507,7 @@ function setLoop(on) {
   if (on && !S.loop.on) {
     const last = barCount() - 1;
     const a = Math.min(barIndexAt(T.playing ? viewTime() : T.pos), last);
-    S.loop = { on: true, a, b: Math.min(a + 1, last) };
+    S.loop = { on: true, a, b: Math.min(a + 1, last), t: null, mark: null };
   } else {
     S.loop.on = on;
   }
@@ -1477,6 +1517,7 @@ function setLoop(on) {
 function nudgeLoop(which, d) {
   if (!looping() || R) return;
   const last = barCount() - 1;
+  S.loop.t = null; S.loop.mark = null; // 小節で動かしたら、しおりの区間から小節の区間に戻る
   if (which === 'a') { S.loop.a = clamp(S.loop.a + d, 0, last); if (S.loop.b < S.loop.a) S.loop.b = S.loop.a; }
   else { S.loop.b = clamp(S.loop.b + d, 0, last); if (S.loop.a > S.loop.b) S.loop.a = S.loop.b; }
   S.passes = [];
@@ -1505,7 +1546,112 @@ function syncLoopUI() {
     $('loopB-').disabled = !!R || S.loop.b <= 0;
     $('loopB+').disabled = !!R || S.loop.b >= last;
   }
+  $('markBtn').disabled = !!R;
+  $('markBtn').setAttribute('aria-pressed', String(!!marking));
+  $('markBtn').classList.toggle('marking', !!marking);
+  $('markBtn').textContent = marking ? 'やめる' : '＋ しおりを作る';
+  renderMarks();
   renderPasses();
+}
+// ===== しおり：ピアノロールで始まりと終わりを指定した区間（曲ごとに、この端末に記憶） =====
+const MARK_KEY = 'acapella-renshucho:marks:v1';
+let marking = null; // しおりを作っている途中：{ a: 始まりの時刻 or null, sel: [始まり, 終わり] or null }
+const songKey = () => S.label + '|' + S.song.duration.toFixed(2) + '|' + S.song.parts.length;
+function loadMarks() {
+  try {
+    const all = JSON.parse(localStorage.getItem(MARK_KEY) || '{}') || {};
+    const list = all[songKey()];
+    return Array.isArray(list) ? list.filter((m) => m && m.b > m.a && m.a >= 0) : [];
+  } catch (e) { return []; }
+}
+function saveMarks() {
+  try {
+    const all = JSON.parse(localStorage.getItem(MARK_KEY) || '{}') || {};
+    if (S.marks.length) all[songKey()] = S.marks; else delete all[songKey()];
+    localStorage.setItem(MARK_KEY, JSON.stringify(all));
+  } catch (e) { /* 記憶できなくても、開いている間は使える */ }
+}
+function addMark(a, b) {
+  if (b < a) [a, b] = [b, a];
+  a = clamp(a, 0, S.song.duration); b = clamp(b, 0, S.song.duration);
+  if (b - a < 0.2) { say('短すぎるので、もう少し長くなぞってください。', true); return; }
+  const n = S.marks.reduce((mx, m) => Math.max(mx, m.n || 0), 0) + 1;
+  const mk = { id: Date.now().toString(36) + n, n, name: 'しおり' + n, a: +a.toFixed(3), b: +b.toFixed(3) };
+  S.marks.push(mk);
+  S.marks.sort((x, y) => x.a - y.a);
+  saveMarks();
+  marking = null;
+  say('');
+  useMark(mk.id);
+}
+function useMark(id) {
+  if (!S.song || R) return;
+  const mk = S.marks.find((m) => m.id === id);
+  if (!mk) return;
+  if (looping() && S.loop.mark === id) { S.loop.t = null; S.loop.mark = null; } // もう一度押すと小節の区間に戻る
+  else S.loop = { on: true, a: barIndexAt(mk.a), b: barIndexAt(Math.max(mk.a, mk.b - 1e-3)), t: [mk.a, mk.b], mark: id };
+  S.passes = [];
+  afterLoopChange(true);
+}
+function deleteMark(id) {
+  if (R) return;
+  S.marks = S.marks.filter((m) => m.id !== id);
+  saveMarks();
+  if (S.loop.mark === id) { S.loop.t = null; S.loop.mark = null; S.passes = []; afterLoopChange(true); }
+  else syncLoopUI();
+}
+function toggleMarking() {
+  if (!S.song || R) return;
+  if (marking) { marking = null; say(''); }
+  else {
+    if (T.playing) pause();
+    marking = { a: null, sel: null };
+    say('');
+    ensureStageVisible();
+  }
+  syncLoopUI();
+  kick();
+}
+function renderMarks() {
+  const box = $('marks');
+  box.textContent = '';
+  const sm = $('seekMarks');
+  sm.textContent = '';
+  if (!S.song) return;
+  const D = S.song.duration || 1;
+  for (const mk of S.marks) {
+    const on = looping() && S.loop.mark === mk.id;
+    const w = document.createElement('span');
+    w.className = 'mark';
+    const c = document.createElement('button');
+    c.type = 'button';
+    c.className = 'chip';
+    c.setAttribute('role', 'radio');
+    c.setAttribute('aria-checked', String(on));
+    c.disabled = !!R;
+    c.append(mk.name);
+    const r = document.createElement('span');
+    r.className = 'r';
+    const ba = S.song.bars[barIndexAt(mk.a)].n, bb = S.song.bars[barIndexAt(Math.max(mk.a, mk.b - 1e-3))].n;
+    r.textContent = ba === bb ? ba + '小節目' : ba + '〜' + bb + '小節';
+    c.title = fmt(mk.a) + '〜' + fmt(mk.b);
+    c.append(r);
+    c.addEventListener('click', () => useMark(mk.id));
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'iconbtn';
+    x.disabled = !!R;
+    x.setAttribute('aria-label', mk.name + 'を消す');
+    x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg>';
+    x.addEventListener('click', () => deleteMark(mk.id));
+    w.append(c, x);
+    box.append(w);
+    const bar = document.createElement('span');
+    if (on) bar.className = 'on';
+    bar.style.left = (mk.a / D * 100) + '%';
+    bar.style.width = ((mk.b - mk.a) / D * 100) + '%';
+    sm.append(bar);
+  }
 }
 function renderPasses() {
   const el = $('passes');
@@ -1599,6 +1745,7 @@ function syncTransportUI() {
   $('keyUp').disabled = !!R || S.transpose >= 12;
   // 録音中は、パート・練習の段階・区間を変えられないようにする（録音の記録と食い違わないように）
   $('loopBtn').disabled = !has || !!R;
+  if (R && marking) { marking = null; kick(); } // 録音が始まったら、しおり作りはやめる
   document.querySelectorAll('.chip').forEach((el) => { el.disabled = !!R; });
   document.querySelectorAll('input[name="mode"]').forEach((el) => { el.disabled = !!R; });
   syncLoopUI();
@@ -1646,7 +1793,7 @@ function updateReadouts() {
     const shape = ok
       ? '<svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="currentColor"/></svg>'
       : '<svg viewBox="0 0 14 14"><path d="M7 0l1.6 4 4.2-1.2-2.6 3.5 2.6 3.5-4.2-1.2L7 14 5.4 9.6l-4.2 1.2 2.6-3.5L1.2 2.8l4.2 1.2z" fill="currentColor"/></svg>';
-    $('hVerdict').innerHTML = shape + (ok ? '合っています' : cents > 0 ? '高いので、少し下げて' : '低いので、少し上げて');
+    $('hVerdict').innerHTML = shape + '<span>' + (ok ? '合っています' : cents > 0 ? '高め・下げて' : '低め・上げて') + '</span>';
   }
   // 位置と時間
   if (S.song) {
@@ -1744,6 +1891,25 @@ function drawPreview(W, H) {
   g.stroke();
   g.restore();
 }
+const GUT = 56; // ピアノロール左の音名の幅
+// ピアノロール上の横位置 x（CSSピクセル）→ 曲の時刻
+function timeAtX(x) {
+  const playX = GUT + (view.w - GUT) * 0.3;
+  return clamp(viewTime() + (x - playX) / S.zoom, 0, S.song.duration);
+}
+// なぞった位置を、近くの音符の始まり・終わりや小節線に合わせる（12ピクセル以内）
+function snapTime(t) {
+  const tol = 12 / S.zoom;
+  let best = t, bd = tol;
+  const near = (c) => { const d = Math.abs(c - t); if (d < bd) { bd = d; best = c; } };
+  for (let i = lowerBound(S.events, t - 30, 's'); i < S.events.length && S.events[i].s <= t + tol; i++) {
+    near(S.events[i].s);
+    near(S.events[i].e);
+  }
+  const bars = S.song.bars;
+  for (let i = Math.max(0, lowerBound(bars, t - tol, 't')); i < bars.length && bars[i].t <= t + tol; i++) near(bars[i].t);
+  return best;
+}
 function draw() {
   const W = view.w, H = view.h;
   if (!W || !H) return;
@@ -1751,7 +1917,7 @@ function draw() {
   g.fillStyle = C.roll;
   g.fillRect(0, 0, W, H);
   if (!S.song) { drawPreview(W, H); return; }
-  const gut = 56, top = 24, bot = H - 6;
+  const gut = GUT, top = 24, bot = H - 6;
   const [lo, hi] = viewRange();
   const rowH = (bot - top) / (hi - lo + 1);
   const Y = (m) => top + (hi + 0.5 - m) * rowH;
@@ -1779,6 +1945,26 @@ function draw() {
     g.fillStyle = C.loopEdge;
     g.fillRect(Math.round(x0) - 1, 0, 2, H);
     g.fillRect(Math.round(x1) - 1, 0, 2, H);
+  }
+  // しおり（上の端に細い帯）と、作っている途中の範囲
+  for (const mk of S.marks) {
+    const x0 = X(mk.a), x1 = X(mk.b);
+    if (x1 < gut || x0 > W) continue;
+    g.fillStyle = C.loopEdge;
+    g.globalAlpha = looping() && S.loop.mark === mk.id ? 1 : 0.45;
+    g.fillRect(x0, 0, Math.max(2, x1 - x0), 4);
+    g.globalAlpha = 1;
+  }
+  if (marking) {
+    const sel = marking.sel || (marking.a != null ? [marking.a, marking.a] : null);
+    if (sel) {
+      const x0 = X(Math.min(sel[0], sel[1])), x1 = X(Math.max(sel[0], sel[1]));
+      g.fillStyle = C.loop;
+      g.fillRect(x0, 0, x1 - x0, H);
+      g.fillStyle = C.loopEdge;
+      g.fillRect(Math.round(x0) - 1, 0, 2, H);
+      g.fillRect(Math.round(x1) - 1, 0, 2, H);
+    }
   }
   // 小節線
   g.font = '500 11px ' + FONT;
@@ -1899,6 +2085,27 @@ function draw() {
       g.globalAlpha = 1;
     }
   }
+  // しおりを作っている時の案内（下の操作欄を高くしないよう、音程バーの中に出す）
+  if (marking) {
+    const lines = marking.a == null
+      ? ['練習したい所を、横になぞってください', '（始まりと終わりを1回ずつタップしてもOK）']
+      : ['始まりを決めました', '終わりの位置をタップしてください'];
+    const cx = gut + (W - gut) / 2;
+    g.font = '700 13px ' + FONT;
+    const bw = Math.min(W - gut - 12, Math.max(...lines.map((l) => g.measureText(l).width)) + 24);
+    g.fillStyle = C.surface;
+    g.globalAlpha = 0.92;
+    rrect(cx - bw / 2, top + 6, bw, 44, 10);
+    g.fill();
+    g.globalAlpha = 1;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = C.ink;
+    g.fillText(lines[0], cx, top + 19, bw - 12);
+    g.font = '500 12px ' + FONT;
+    g.fillStyle = C.muted;
+    g.fillText(lines[1], cx, top + 37, bw - 12);
+  }
   g.restore();
   // 左の音名
   g.fillStyle = C.surface;
@@ -1946,6 +2153,7 @@ $('confirmYes').addEventListener('click', () => { const a = pendingLoad; pending
 $('confirmNo').addEventListener('click', () => { pendingLoad = null; $('confirmBar').hidden = true; });
 document.querySelectorAll('input[name="mode"]').forEach((el) => el.addEventListener('change', () => setMode(Number(el.value))));
 $('loopBtn').addEventListener('click', () => setLoop(!looping()));
+$('markBtn').addEventListener('click', toggleMarking);
 $('loopA-').addEventListener('click', () => nudgeLoop('a', -1));
 $('loopA+').addEventListener('click', () => nudgeLoop('a', 1));
 $('loopB-').addEventListener('click', () => nudgeLoop('b', -1));
@@ -2004,20 +2212,53 @@ $('ec').addEventListener('change', async (e) => {
   if (A.mic) { micOff(); await micOn(); }
 });
 // 曲を止めている時は、横にドラッグして位置を動かせる
+// しおりを作っている時は、なぞった範囲（またはタップ2回）で始まりと終わりを決める
 cv.addEventListener('pointerdown', (e) => {
-  if (!S.song || T.playing) return;
+  if (!S.song) return;
+  if (marking) {
+    const x = e.clientX - cv.getBoundingClientRect().left;
+    if (x < GUT) return;
+    const t = snapTime(timeAtX(x));
+    drag = { x: e.clientX, mark: true, t };
+    if (marking.a == null) marking.sel = [t, t];
+    cv.setPointerCapture(e.pointerId);
+    kick();
+    return;
+  }
+  if (T.playing) return;
   drag = { x: e.clientX, pos: T.pos };
   cv.setPointerCapture(e.pointerId);
   kick();
 });
 cv.addEventListener('pointermove', (e) => {
   if (!drag) return;
+  if (drag.mark) {
+    if (Math.abs(e.clientX - drag.x) < 6) return;
+    drag.moved = true;
+    const t = snapTime(timeAtX(e.clientX - cv.getBoundingClientRect().left));
+    marking.sel = [marking.a != null ? marking.a : drag.t, t];
+    kick();
+    return;
+  }
   T.pos = clamp(drag.pos - (e.clientX - drag.x) / S.zoom, 0, S.song.duration);
   kick();
 });
 const endDrag = () => { drag = null; kick(); };
-cv.addEventListener('pointerup', endDrag);
-cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('pointerup', () => {
+  if (drag && drag.mark && marking) {
+    const d = drag;
+    drag = null;
+    if (d.moved) { addMark(marking.sel[0], marking.sel[1]); return; }
+    if (marking.a == null) { // 1回目のタップ：始まり
+      marking.a = d.t;
+      marking.sel = null;
+    } else addMark(marking.a, d.t); // 2回目のタップ：終わり
+    kick();
+    return;
+  }
+  endDrag();
+});
+cv.addEventListener('pointercancel', () => { if (drag && drag.mark && marking) marking.sel = null; endDrag(); });
 // ファイルのドロップ
 let dragDepth = 0;
 document.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; wrap.classList.add('drop'); });
@@ -2032,6 +2273,7 @@ document.addEventListener('drop', (e) => {
 });
 // スペースキーで再生／一時停止
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && marking) { toggleMarking(); return; }
   if (e.code !== 'Space' && e.key !== ' ') return;
   const tag = (e.target && e.target.tagName) || '';
   if (/^(INPUT|BUTTON|SELECT|TEXTAREA|SUMMARY|LABEL)$/.test(tag)) return;
