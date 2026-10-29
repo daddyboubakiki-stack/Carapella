@@ -102,7 +102,7 @@ body {
 .modes .seg label { padding: 0.3em 0.8em; font-size: 0.88rem; white-space: nowrap; }
 .hint { flex: 1 1 260px; min-width: 0; margin: 0; font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
 
-.parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 10px; }
+.parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 8px; margin-top: 10px; }
 .part {
   display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0 8px;
   background: var(--surface); border: 1.5px solid var(--line); border-left: 6px solid var(--pc); border-radius: 14px; padding: 6px 8px 8px 12px;
@@ -113,6 +113,7 @@ body {
 .part.mine .mine-tag { display: inline; }
 .part .vol { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
 .part .vol input { flex: 1; min-width: 0; }
+.part .vol select { font: inherit; font-size: 0.82rem; color: var(--ink); background: var(--paper); border: 1.5px solid var(--line); border-radius: 10px; padding: 4px 6px; min-height: 32px; max-width: 8.5em; flex: none; }
 .part .vol output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
 /* バーの色を選ぶ（丸い色見本） */
 .pcolor { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--line); padding: 3px; background: transparent; cursor: pointer; }
@@ -378,9 +379,9 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   <p class="tip">イヤホンで使ってください。スピーカーでガイドを流すと、マイクがその音を拾ってしまい、歌っていなくても「合っている」になります。③④の段階では自分のパートの音が鳴らないので、この影響は小さくなります。iPhoneでガイドが聞こえない時は、消音モード（マナーモード）を切ってみてください。</p>
 
   <details class="box" id="partMix">
-    <summary>パートごとの音量・色</summary>
-    <div class="parts" id="parts" role="group" aria-label="パートごとのガイド音量と色"></div>
-    <p class="tip">音量は最初が100%で、150%まで上げられます。ここでの音量に、上の「練習の段階」の設定（自分のパートを小さく・消す）が重なります。色の丸を押すと、音程バーの色を変えられます（色はこの端末に曲ごとに記憶します）。</p>
+    <summary>パートごとの音量・音色・色</summary>
+    <div class="parts" id="parts" role="group" aria-label="パートごとのガイド音量・音色・色"></div>
+    <p class="tip">音量は最初が100%で、200%まで上げられます。ここでの音量に、上の「練習の段階」の設定（自分のパートを小さく・消す）が重なります。色の丸を押すと音程バーの色を、左の欄で音色を変えられます（色と音色は、この端末に曲ごとに記憶します）。</p>
   </details>
 
   <section class="block" aria-labelledby="takesH">
@@ -822,9 +823,12 @@ function ensureCtx() {
     A.clickGain.connect(A.guide);
     A.reviewGain = ctx.createGain();
     A.reviewGain.connect(ctx.destination);
-    // 少しだけ倍音を足した、音程が聞き取りやすい柔らかい音
-    const amps = [0, 1, 0.45, 0.22, 0.12, 0.06];
-    A.wave = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
+    // 音色ごとの波の形（倍音の組み合わせ）
+    A.waves = {};
+    for (const [k, tn] of Object.entries(TONES)) {
+      const amps = [0, ...tn.amps];
+      A.waves[k] = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
+    }
     buildPartGains();
     if (!latTouched) {
       // 出力の遅れ（端末が報告する値）＋マイク入力と解析窓の分のおおよその見積もり
@@ -841,17 +845,27 @@ function ensureCtx() {
 const PART_COLORS = ['#E5484D', '#F08C2E', '#3B82F6', '#2FA56A', '#8E5BD9'];
 const PART_GRAY = '#8A94A6';
 const defaultColor = (i) => PART_COLORS[i] || PART_GRAY;
-const VOL_UNIT = 0.7; // 音量100%のときの大きさ（最大150%）
-const COLOR_KEY = 'acapella-renshucho:colors:v1';
-function loadColors() {
-  try { const c = (JSON.parse(localStorage.getItem(COLOR_KEY) || '{}') || {})[songKey()]; return Array.isArray(c) ? c : []; } catch (e) { return []; }
+const VOL_UNIT = 0.7; // 音量100%のときの大きさ（最大200%）
+// 音色：アプリの中で作る音（読み込みなし）。どれもビブラートなしで、音の高さがはっきり聞こえるようにしている。
+// amps は倍音の強さ（1倍音から）。formants は「声」らしさを出す山（周波数Hz・鋭さQ・強さdB）。gain は音色どうしの大きさをそろえる係数。
+// 「声（アー）」は母音「あ」の響きの山（約800Hz・1200Hz）を足しただけの近似で、人の声の揺れや息の音はない。
+const TONES = {
+  soft: { name: 'やわらか', amps: [1, 0.45, 0.22, 0.12, 0.06], gain: 1 },
+  clear: { name: 'はっきり', amps: [1, 0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.12, 0.11, 0.1], gain: 0.9 },
+  voice: { name: '声（アー）', amps: Array.from({ length: 24 }, (_, k) => 1 / (k + 1)), gain: 0.65, atk: 0.06, lowpass: 3200, formants: [[800, 5, 12], [1200, 6, 9], [2600, 8, 4]] },
+  organ: { name: 'オルガン', amps: [1, 0.7, 0.45, 0.35, 0, 0.25, 0, 0.18], gain: 0.9 },
+};
+const PART_KEY = 'acapella-renshucho:parts:v1'; // 曲ごとの、パートの色と音色
+function loadPartPrefs() {
+  try { const v = (JSON.parse(localStorage.getItem(PART_KEY) || '{}') || {})[songKey()]; return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
 }
-function saveColors() {
+function savePartPrefs() {
   try {
-    const all = JSON.parse(localStorage.getItem(COLOR_KEY) || '{}') || {};
-    const cs = S.pstate.map((st) => st.color);
-    if (cs.every((c, i) => c === defaultColor(i))) delete all[songKey()]; else all[songKey()] = cs;
-    localStorage.setItem(COLOR_KEY, JSON.stringify(all));
+    const all = JSON.parse(localStorage.getItem(PART_KEY) || '{}') || {};
+    const c = S.pstate.map((st) => st.color), t = S.pstate.map((st) => st.tone);
+    if (c.every((x, i) => x === defaultColor(i)) && t.every((x) => x === 'soft')) delete all[songKey()];
+    else all[songKey()] = { c, t };
+    localStorage.setItem(PART_KEY, JSON.stringify(all));
   } catch (e) { /* 記憶できなくても、開いている間は使える */ }
 }
 const partLevel = (i) => (S.pstate[i] && !S.pstate[i].muted ? S.pstate[i].vol : 0) * modeFactor(i);
@@ -871,26 +885,40 @@ function applyGains() {
   A.partGains.forEach((g, i) => g.gain.setTargetAtTime(partLevel(i), now, 0.02));
   A.guide.gain.setTargetAtTime(S.guideVol, now, 0.02);
 }
-function playNote(m, when, dur, vel, dest) {
+function playNote(m, when, dur, vel, dest, tone) {
   const ctx = A.ctx;
+  const tn = TONES[tone] || TONES.soft;
   dur = Math.max(dur, 0.04);
   const o = ctx.createOscillator();
-  o.setPeriodicWave(A.wave);
+  o.setPeriodicWave(A.waves[tone] || A.waves.soft);
   o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
   const g = ctx.createGain();
-  const peak = 0.22 * (0.45 + 0.55 * (vel / 127));
-  const atk = Math.min(0.02, dur / 3);
+  const peak = 0.22 * tn.gain * (0.45 + 0.55 * (vel / 127));
+  const atk = Math.min(tn.atk || 0.02, dur / 3);
   g.gain.setValueAtTime(0, when);
   g.gain.linearRampToValueAtTime(peak, when + atk);
   g.gain.setTargetAtTime(peak * 0.7, when + atk, 0.3);
   g.gain.setTargetAtTime(0, when + dur, 0.025);
-  o.connect(g);
+  // 「声」は響きの山（フォルマント）を足す
+  const fs = [];
+  let last = o;
+  for (const [f, q, db] of tn.formants || []) {
+    const bq = ctx.createBiquadFilter();
+    bq.type = 'peaking'; bq.frequency.value = f; bq.Q.value = q; bq.gain.value = db;
+    last.connect(bq); last = bq; fs.push(bq);
+  }
+  if (tn.lowpass) {
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = tn.lowpass;
+    last.connect(lp); last = lp; fs.push(lp);
+  }
+  last.connect(g);
   g.connect(dest);
   o.start(when);
   o.stop(when + dur + 0.2);
   const node = { o, g };
   A.active.add(node);
-  o.onended = () => { A.active.delete(node); try { g.disconnect(); } catch (e) { /* ignore */ } };
+  o.onended = () => { A.active.delete(node); try { g.disconnect(); fs.forEach((f) => f.disconnect()); } catch (e) { /* ignore */ } };
 }
 function playClick(when, accent) {
   const ctx = A.ctx;
@@ -973,7 +1001,7 @@ function schedule() {
   while (T.next < ev.length && ev[T.next].s < limit) {
     const e = ev[T.next++];
     const when = T.t0 + (e.s - T.p0) / T.rate;
-    playNote(e.m + T.tr, Math.max(when, ctx.currentTime), (Math.min(e.e, T.end) - e.s) / T.rate, e.v, A.partGains[e.part]);
+    playNote(e.m + T.tr, Math.max(when, ctx.currentTime), (Math.min(e.e, T.end) - e.s) / T.rate, e.v, A.partGains[e.part], S.pstate[e.part].tone);
   }
   const now = songNow();
   if (T.end < Infinity && now >= T.end + LOOP_TAIL * T.rate) { loopPassEnd(); return; }
@@ -1018,7 +1046,7 @@ function play(p, take, opts) {
     // ③④は自分のガイドがないので、カウント中に自分のパートの最初の音を鳴らす
     if (MODES[S.mode].own === 0) {
       const n = S.song.parts[S.sel].notes.find((x) => x.e > p + 0.01);
-      if (n) playNote(n.m + T.tr, T.cStart, Math.max(0.4, lead - beat), 100, A.pitchGain);
+      if (n) playNote(n.m + T.tr, T.cStart, Math.max(0.4, lead - beat), 100, A.pitchGain, S.pstate[S.sel].tone);
     }
   }
   T.t0 = lead ? T.cStart + lead : now + 0.08;
@@ -1028,7 +1056,7 @@ function play(p, take, opts) {
   T.next = lowerBound(ev, p, 's');
   for (let i = 0; i < T.next; i++) {
     const e = ev[i];
-    if (e.e > p + 0.03) playNote(e.m + T.tr, T.t0, (Math.min(e.e, T.end) - p) / T.rate, e.v, A.partGains[e.part]);
+    if (e.e > p + 0.03) playNote(e.m + T.tr, T.t0, (Math.min(e.e, T.end) - p) / T.rate, e.v, A.partGains[e.part], S.pstate[e.part].tone);
   }
   if (!take) {
     S.trail = S.trail.filter((pt) => pt.t < p);
@@ -1113,7 +1141,7 @@ function giveStartNote() {
   const t = viewTime();
   const n = part.notes.find((x) => x.e > t + 0.01) || part.notes[0];
   const m = n.m + curTr();
-  playNote(m, A.ctx.currentTime + 0.02, 1.2, 100, A.pitchGain);
+  playNote(m, A.ctx.currentTime + 0.02, 1.2, 100, A.pitchGain, S.pstate[S.sel].tone);
   say(part.name + 'の音：' + noteName(m), true);
 }
 
@@ -1383,8 +1411,10 @@ function setSong(song, label) {
   if (T.playing) pause();
   S.song = song;
   S.label = label;
-  S.pstate = song.parts.map((_, i) => ({ vol: VOL_UNIT, muted: false, color: defaultColor(i) }));
-  loadColors().forEach((c, i) => { if (S.pstate[i] && /^#[0-9a-f]{6}$/i.test(c)) S.pstate[i].color = c; });
+  S.pstate = song.parts.map((_, i) => ({ vol: VOL_UNIT, muted: false, color: defaultColor(i), tone: 'soft' }));
+  const pp = loadPartPrefs();
+  (pp.c || []).forEach((c, i) => { if (S.pstate[i] && /^#[0-9a-f]{6}$/i.test(c)) S.pstate[i].color = c; });
+  (pp.t || []).forEach((t, i) => { if (S.pstate[i] && TONES[t]) S.pstate[i].tone = t; });
   // 前に選んだパート名と同じパートがあれば、それを自分のパートにする（Bass の人は毎回 Bass、など）
   const remembered = song.parts.findIndex((pt) => pt.name === S.partName);
   S.sel = remembered >= 0 ? remembered : 0;
@@ -1504,13 +1534,32 @@ function renderParts() {
       syncMineColor();
       kick();
     });
-    col.addEventListener('change', saveColors);
+    col.addEventListener('change', savePartPrefs);
+    const tone = document.createElement('select');
+    tone.setAttribute('aria-label', pt.name + 'の音色');
+    tone.title = '音色';
+    for (const [k, tn] of Object.entries(TONES)) {
+      const op = document.createElement('option');
+      op.value = k;
+      op.textContent = tn.name;
+      tone.append(op);
+    }
+    tone.value = st.tone;
+    tone.addEventListener('change', () => {
+      st.tone = tone.value;
+      savePartPrefs();
+      // 止まっている時は、そのパートの音域の真ん中あたりの音で試し聴きさせる
+      if (!T.playing && !R) {
+        try { ensureCtx(); } catch (e) { return; }
+        playNote(Math.round((pt.min + pt.max) / 2) + curTr(), A.ctx.currentTime + 0.02, 0.8, 100, A.partGains[i], st.tone);
+      }
+    });
     const volBox = document.createElement('div');
     volBox.className = 'vol';
     const vol = document.createElement('input');
     vol.type = 'range';
     vol.min = '0';
-    vol.max = '150';
+    vol.max = '200';
     vol.step = '5';
     vol.value = String(Math.round(st.vol / VOL_UNIT * 100));
     vol.setAttribute('aria-label', pt.name + 'のガイド音量');
@@ -1522,7 +1571,7 @@ function renderParts() {
       if (st.muted && st.vol > 0) { st.muted = false; setMute(); }
       applyGains();
     });
-    volBox.append(vol, vout);
+    volBox.append(tone, vol, vout);
     row.append(lab, col, mute, volBox);
     box.append(row);
   });
