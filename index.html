@@ -2345,7 +2345,7 @@ function draw() {
   // 通り過ぎた音符を少しうすく
   g.fillStyle = C.roll;
   g.globalAlpha = 0.35;
-  g.fillRect(gut, top, Math.max(0, playX - gut), bot - top);
+  g.fillRect(gut, top, Math.max(0, Math.min(W, X(playingTime)) - gut), bot - top);
   g.globalAlpha = 1;
   // 歌詞
   if (mine.lyrics.length && rowH >= 7) {
@@ -2640,7 +2640,7 @@ cv.addEventListener('wheel', (e) => {
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? view.h : 1;
   const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
   const dy = (e.shiftKey ? 0 : e.deltaY) * unit;
-  if (Math.abs(dx) > 1) panToTime(displayTime() + dx / pixelsPerSecond());
+  if (Math.abs(dx) > 1 && Math.abs(dx) > Math.abs(dy) * 0.4) panToTime(displayTime() + dx / pixelsPerSecond());
   if (dy) {
     const [lo, hi] = viewRange();
     view.wheelPitch -= dy / Math.max(1, (view.h - 30) / (hi - lo + 1));
