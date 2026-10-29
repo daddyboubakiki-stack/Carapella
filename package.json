@@ -6,7 +6,8 @@
     "test:unit": "node tests/midi_test.js && node tests/pitch_test.js && node tests/vibrato.js",
     "test:e2e": "node tests/e2e2.js all",
     "test:layout": "node tests/shot.js 390x664 375x548 412x780 1200x900",
-    "test:marks": "node tests/marks.js 1280 800 && node tests/marks.js 390 664 && node tests/marks.js 360 640"
+    "test:marks": "node tests/marks.js 1280 800 && node tests/marks.js 390 664 && node tests/marks.js 360 640",
+    "test:parts": "node tests/parts.js"
   },
   "devDependencies": {
     "playwright": "1.63.0"
