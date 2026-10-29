@@ -158,7 +158,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
   text-align: center; padding: 20px; gap: 4px;
 }
 .empty[hidden] { display: none; }
-.empty-steps { font-size: clamp(0.72rem, 2.9vw, 1rem); font-weight: 700; white-space: nowrap; }
+.empty-steps { font-size: 1rem; font-weight: 700; text-wrap: balance; }
 .empty p { margin: 0; max-width: 34em; }
 .empty .note { color: var(--muted); font-size: 0.88rem; }
 .empty .actions { justify-content: center; margin: 12px 0 6px; }
@@ -178,8 +178,8 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .seekbox { flex: 1 1 180px; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .seekbox input { flex: 1; min-width: 0; }
 .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
-.score { font-size: 0.9rem; font-weight: 700; color: var(--good); margin: 0; }
-.score:empty, .msg:empty { display: none; }
+.score { font-size: 0.85rem; font-weight: 700; color: var(--muted); margin: 0; height: 1.5em; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg:empty { display: none; }
 .msg { margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--off); }
 .msg.info { color: var(--ink); }
 .loopbox { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 0.88rem; }
@@ -238,24 +238,99 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .how { margin-top: 18px; font-size: 0.9rem; color: var(--muted); max-width: 46em; }
 .how p { margin: 0 0 8px; }
 
+/* 曲を開いた後の練習画面は、実際の各欄の高さからグラフの高さを決める。 */
+.top > div { min-width: 0; }
+.song { overflow-wrap: anywhere; }
+.song-meta { margin: 0; font-size: 0.78rem; color: var(--muted); }
+.file-menu > summary { display: none; }
+.file-menu > .actions { display: flex; }
+.part-select { display: none; }
+.modes { position: relative; flex-wrap: nowrap; }
+.mode-help { position: relative; margin-left: auto; flex: none; }
+.mode-help > summary, .plot-help > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+.mode-help > summary { list-style: none; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+.mode-help[open] > .hint, .plot-help[open] > p { position: absolute; right: 0; top: 100%; z-index: 8; width: min(310px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 6px 24px #0003; margin: 4px 0; }
+.read-status { display: block; font-size: 0.7rem; line-height: 1.4; height: 1.4em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.range-notice, .voice-notice { position: absolute; z-index: 1; pointer-events: none; font-size: 0.66rem; line-height: 1.4; background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; max-width: calc(100% - 64px); }
+.range-notice { right: 5px; bottom: 5px; }
+.voice-notice { right: 5px; top: 24px; color: var(--ink); }
+.plot-help { position: relative; text-align: right; margin-top: 2px; }
+.plot-help > summary { display: inline-block; padding: 2px 0; }
+.plot-help[open] > p { top: auto; bottom: 100%; text-align: left; font-size: 0.8rem; }
+.timeline { flex-direction: column; align-items: stretch !important; gap: 2px !important; }
+.seekbox { flex: none; width: 100%; }
+.seektrack input { width: 100%; margin-inline: 0; }
+.seek-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.transport .msg { position: absolute; bottom: 100%; left: var(--gl); right: var(--gr); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; max-height: 6em; overflow-y: auto; }
 @media (max-width: 700px) {
-  /* スマホ：音程バーと下の操作バーが同じ画面に収まる高さにする */
-  .roll { height: clamp(170px, calc(100vh - 372px), 560px); height: clamp(170px, calc(100svh - 372px), 560px); }
-  /* 曲を開く前は、説明が切れないよう中身に合わせた高さにする */
-  .roll:has(> .empty:not([hidden])) { height: auto; }
+  .wrap { padding-top: 10px; }
+  .top { gap: 6px 10px; margin-bottom: 8px; }
+  .top h1 { font-size: 1.15rem; }
+  .song { font-size: 0.78rem; }
+  .song-meta { font-size: 0.7rem; }
+  .has-song .top { flex-wrap: nowrap; align-items: center; }
+  .has-song .top > div { flex: 1; }
+  .has-song .top h1 { font-size: 0.82rem; color: var(--muted); }
+  .has-song .song { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 0.82rem; color: var(--ink); }
+  .file-menu { flex: none; position: relative; }
+  .has-song .file-menu > summary { display: block; cursor: pointer; list-style: none; border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.76rem; }
+  .has-song .file-menu:not([open]) > .actions { display: none; }
+  .has-song .file-menu[open] > .actions { position: absolute; right: 0; top: 100%; min-width: 175px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); z-index: 10; box-shadow: 0 6px 24px #0003; }
+  .partbar { gap: 8px; margin-bottom: 6px; }
+  .partbar > .lbl { font-size: 0.72rem; }
+  .chips { display: none; }
+  .part-select { display: block; flex: 1; min-width: 0; max-width: 100%; font: inherit; font-size: 0.82rem; font-weight: 700; min-height: 38px; padding: 5px 8px; border: 1.5px solid var(--mine, var(--line)); border-radius: 10px; color: var(--ink); background: var(--surface); }
+  .modes { gap: 4px; margin-bottom: 6px; }
+  .modes .seg { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-radius: 10px; }
+  .modes .seg label { padding: 5px 0; font-size: 0.72rem; text-align: center; }
+  .mode-help > summary { width: 30px; height: 30px; }
+  .read { padding: 3px 8px; }
+  .read .k, .verdict { font-size: 0.7rem; }
+  .read .v { font-size: 1.25rem; }
+  .read .u { font-size: 0.66rem; }
+  .read-status { font-size: 0.64rem; }
+  .hud { margin-bottom: 6px; }
+  .roll { height: var(--practice-roll-height, 210px); min-height: 110px; border-radius: 14px; }
+  .roll:has(> .empty:not([hidden])) { height: auto; min-height: 0; }
   .roll:has(> .empty:not([hidden])) canvas { position: absolute; inset: 0; }
   .empty { position: relative; inset: auto; padding: 18px 14px; }
-  .top h1 { font-size: 1.3rem; }
-  .song { font-size: 0.82rem; }
-  .read { padding: 3px 8px 4px; }
-  .read .k, .verdict { font-size: 0.75rem; }
-  .legend { display: none; } /* 下の操作バーに隠れるので出さない（線の形と「ずれ」の表示で判断できる） */
-  .modes .seg label { padding: 0.3em 0.55em; font-size: 0.8rem; }
-  .hint { font-size: 0.76rem; flex-basis: 100%; }
-  .transport .main .btn { flex: 1 1 0; flex-direction: column; gap: 1px; min-height: 52px; padding: 4px 2px; font-size: 0.72rem; border-radius: 14px; }
-  .transport .main .btn svg { width: 20px; height: 20px; }
-  .btn.mic::after { left: 10px; right: 10px; bottom: 3px; }
-  .time { font-size: 0.78rem; }
+  .empty-steps { font-size: clamp(0.72rem, 2.9vw, 0.9rem); }
+  .legend { display: flex; gap: 2px 10px; font-size: 0.64rem; margin: 4px 0 0; line-height: 1.4; }
+  .legend span { gap: 3px; }
+  .legend svg { width: 17px; height: 10px; }
+  .plot-help { margin-top: 0; line-height: 1.2; }
+  .plot-help > summary { font-size: 0.64rem; }
+  .transport { margin-top: 6px; padding-top: 5px; gap: 4px; }
+  .transport .main { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .transport .main .btn { min-width: 0; flex-direction: column; gap: 2px; height: 54px; padding: 4px 1px; font-size: 0.68rem; border-radius: 12px; white-space: normal; line-height: 1.2; }
+  .transport .main .btn span { display: block; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+  .transport .main .btn svg { width: 18px; height: 18px; }
+  .btn.mic::after { left: 7px; right: 7px; bottom: 3px; }
+  .score { font-size: 0.72rem; }
+  .time { font-size: 0.68rem; }
+  .seektrack input { height: 26px; }
+  .seek-meta .btn { min-height: 30px; font-size: 0.7rem; padding: 2px 8px; }
+  .loopbox { max-height: 140px; overflow-y: auto; padding: 3px 0; font-size: 0.75rem; }
+  .markrow { overflow-x: auto; }
+  .mixer { margin-top: 12px; display: grid; gap: 8px; }
+  .ctl { display: grid; grid-template-columns: 6em minmax(0, 1fr) 3.2em; width: 100%; font-size: 0.82rem; }
+  .ctl input { width: 100%; min-width: 0; }
+  .ctl[role="group"] { display: flex; }
+  .setgrid { grid-template-columns: minmax(0, 1fr); }
+  .seg { flex-wrap: wrap; border-radius: 12px; }
+  .seg label { padding: 5px 8px; }
+}
+@media (max-width: 700px) and (max-height: 620px) {
+  .has-song .top h1, .has-song .song-meta { display: none; }
+  .has-song .top { min-height: 36px; }
+  .has-song .file-menu > summary { padding: 5px 8px; }
+  .part-select { min-height: 32px; padding-block: 2px; }
+  .read .v { font-size: 1.1rem; }
+  .read .k { font-size: 0.64rem; }
+  .read { padding-block: 2px; }
+  .transport .main .btn { height: 48px; }
+  .legend { gap: 2px 6px; font-size: 0.6rem; }
+  .legend svg { width: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -266,12 +341,16 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <div>
       <h1>アカペラ練習帳</h1>
       <p class="song" id="songTitle">MIDIを開くと、パートごとの音程バーで練習できます</p>
+      <p class="song-meta" id="songMeta" hidden></p>
     </div>
-    <div class="actions">
+    <details class="file-menu" id="fileMenu" open>
+      <summary>曲を開く</summary>
+      <div class="actions">
       <button class="btn primary" id="openBtn" type="button">MIDIを開く</button>
       <button class="btn" id="demoBtn" type="button">デモ曲で試す</button>
       <input type="file" id="fileIn" accept=".mid,.midi,.kar,.rmi,audio/midi,audio/x-midi" hidden>
-    </div>
+      </div>
+    </details>
   </header>
 
   <div class="banner" id="inAppNote" hidden>
@@ -285,9 +364,11 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     </div>
   </div>
 
+  <div class="practice" id="practice">
   <section class="stage" id="stage" aria-label="練習画面">
     <div class="partbar" id="partBar" hidden>
-      <span class="lbl" id="partLbl">自分のパート</span>
+      <label class="lbl" id="partLbl" for="partSelect">自分のパート</label>
+      <select id="partSelect" class="part-select" aria-label="自分のパート"></select>
       <div class="chips" id="chips" role="radiogroup" aria-labelledby="partLbl"></div>
     </div>
     <div class="modes" id="modeBar" hidden>
@@ -297,17 +378,19 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
         <label title="自分のガイドを消す"><input type="radio" name="mode" value="3">③自分なし</label>
         <label title="ガイドを全部消す"><input type="radio" name="mode" value="4">④ひとりで</label>
       </div>
-      <p class="hint" id="modeHint"></p>
+      <details class="mode-help"><summary aria-label="練習の段階の説明">？</summary><p class="hint" id="modeHint"></p></details>
     </div>
 
     <div class="hud" aria-live="off">
-      <div class="read"><span class="k">目標の音</span><span class="v" id="hTarget">—</span></div>
-      <div class="read"><span class="k">あなたの声</span><span class="v" id="hYou">—</span></div>
+      <div class="read"><span class="k">目標の音</span><span class="v" id="hTarget">—</span><span class="read-status" id="hTargetStatus"></span></div>
+      <div class="read"><span class="k">あなたの声</span><span class="v" id="hYou">—</span><span class="read-status" id="hYouStatus"></span></div>
       <div class="read diff" id="hDiffBox"><span class="k">ずれ</span><span class="v" id="hDiff">—</span><span class="verdict" id="hVerdict"></span></div>
     </div>
 
     <div class="roll" id="rollWrap">
       <canvas id="roll" aria-label="音程バーと、あなたの声の高さの線"></canvas>
+      <span id="rangeNotice" class="range-notice" hidden></span>
+      <span id="voiceNotice" class="voice-notice" hidden></span>
       <div class="empty" id="empty">
         <p class="empty-steps">①デモを開く → ②パートを選ぶ → ③再生</p>
         <div class="actions">
@@ -317,11 +400,13 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
         <p class="note">LINEで受け取ったMIDIは、いったんスマホに保存してから「MIDIを開く」で選びます。パソコンではここにドロップもできます。デモ曲は「かえるの合唱」の3部輪唱です。</p>
       </div>
     </div>
-    <div class="legend" aria-hidden="true">
-      <span><svg viewBox="0 0 26 12"><rect x="1" y="3" width="24" height="6" rx="3" fill="var(--mine, var(--bar))"/></svg>自分のパートの音</span>
-      <span><svg viewBox="0 0 26 12"><path d="M2 6 Q8 2 13 6 T24 6" stroke="var(--good)" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>合っている声</span>
-      <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>外れている声</span>
+    <div class="legend" aria-label="グラフの凡例">
+      <span><svg viewBox="0 0 26 12"><rect x="1" y="3" width="24" height="6" rx="3" fill="var(--mine, var(--bar))"/></svg>自分の音</span>
+      <span><svg viewBox="0 0 26 12"><path d="M2 6 Q8 2 13 6 T24 6" stroke="var(--good)" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>合う声</span>
+      <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
+      <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
+    <details class="plot-help"><summary>見方・操作</summary><p>停止中はグラフを横になぞって再生位置を動かせます。太いバーが自分のパート、淡いバーがほかのパートです。上下の範囲外にも音がある場合は案内を表示します。声が音域を外れたときは、端の印と「表示より上・下」で知らせます。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -334,13 +419,15 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <button class="btn mic" id="micBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg><span id="micLbl">マイクをオン</span></button>
       <button class="btn" id="pitchBtn" type="button" disabled title="自分のパートの、今の位置から歌い出す音を鳴らします"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg><span>出だしの音</span></button>
     </div>
-    <div class="row">
-      <button class="btn small toggle" id="loopBtn" type="button" aria-pressed="false" aria-controls="loopBox" disabled><span class="dot"></span>区間リピート</button>
+    <div class="row timeline">
       <div class="seekbox">
         <div class="seektrack">
           <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="再生位置" disabled>
           <div class="seekmarks" id="seekMarks" aria-hidden="true"></div>
         </div>
+      </div>
+      <div class="seek-meta">
+        <button class="btn small toggle" id="loopBtn" type="button" aria-pressed="false" aria-controls="loopBox" disabled><span class="dot"></span>区間リピート</button>
         <span class="time" id="timeLbl">0:00 / 0:00</span>
       </div>
     </div>
@@ -365,6 +452,8 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
     </div>
   </div>
+
+  </div><!-- practice -->
 
   <div class="mixer">
     <label class="ctl">ガイド音量 <input type="range" id="guideVol" min="0" max="100" value="80"><output id="guideOut">80%</output></label>
@@ -419,7 +508,8 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
       <div class="set">
         <label class="lbl" for="zoom">横の拡大</label>
-        <input type="range" id="zoom" min="60" max="320" step="10" value="140" style="width:100%">
+        <input type="range" id="zoom" min="25" max="320" step="5" value="140" style="width:100%">
+        <label class="check"><input type="checkbox" id="autoZoom" checked><span>画面幅に合わせて、この先およそ2小節を表示（スマホ）</span></label>
       </div>
       <div class="set">
         <label class="lbl" for="lat">声の遅れ補正 <output id="latOut">—</output></label>
@@ -759,6 +849,7 @@ const A = { ctx: null, guide: null, pitchGain: null, reviewGain: null, partGains
 let R = null;            // 録音中の情報
 let recStarting = false;
 let latTouched = false;
+let zoomTouched = false;
 const curTr = () => (T.playing ? T.tr : S.transpose);
 
 // ===== 練習の段階（自分のガイドをだんだん消していく） =====
@@ -778,7 +869,7 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}') || {}; } catch (e) { return {}; }
 }
 function savePrefs() {
-  const p = { naming: S.naming, tol: S.tol, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
+  const p = { naming: S.naming, tol: S.tol, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
   if (latTouched) p.latMs = S.latMs;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 記憶できなくても練習はできる */ }
 }
@@ -1430,12 +1521,18 @@ function setSong(song, label) {
   S.events.sort((a, b) => a.s - b.s);
   T.pos = 0;
   buildPartGains();
-  $('songTitle').textContent = label + '（' + song.parts.length + 'パート、' + fmt(song.duration) + (song.bpm ? '、♩＝' + song.bpm : '') + '）';
+  $('songTitle').textContent = label;
+  $('songTitle').title = label;
+  $('songMeta').textContent = song.parts.length + 'パート · ' + fmt(song.duration) + (song.bpm ? ' · ♩＝' + song.bpm : '');
+  $('songMeta').hidden = false;
+  document.body.classList.add('has-song');
+  $('fileMenu').open = !matchMedia('(max-width: 700px)').matches;
   $('empty').hidden = true;
   $('seek').max = String(song.duration);
   say('');
   renderParts();
   renderTakes();
+  requestPracticeLayout();
   syncLoopUI();
   syncTransportUI();
   kick();
@@ -1471,6 +1568,7 @@ function renderParts() {
   const box = $('parts'), chips = $('chips');
   box.textContent = '';
   chips.textContent = '';
+  $('partSelect').textContent = '';
   const has = !!S.song;
   $('partBar').hidden = !has;
   $('modeBar').hidden = !has;
@@ -1495,6 +1593,10 @@ function renderParts() {
     c.append(cn, cr);
     c.addEventListener('click', () => selectPart(i));
     chips.append(c);
+    const option = document.createElement('option');
+    option.value = String(i);
+    option.textContent = pt.name;
+    $('partSelect').append(option);
     // パートごとの音量と色（折りたたみの中）
     const st = S.pstate[i];
     const row = document.createElement('div');
@@ -1576,6 +1678,7 @@ function renderParts() {
   });
   syncMineColor();
   updateRanges();
+  $('partSelect').value = String(S.sel);
 }
 // 自分のパートの色を、凡例などページの他の場所にも伝える
 function syncMineColor() {
@@ -1583,6 +1686,10 @@ function syncMineColor() {
 }
 function updateRanges() {
   if (!S.song) return;
+  Array.from($('partSelect').options).forEach((option, i) => {
+    const pt = S.song.parts[i];
+    option.textContent = pt.name + '（' + noteName(pt.min + S.transpose) + '〜' + noteName(pt.max + S.transpose) + '）';
+  });
   document.querySelectorAll('[data-range]').forEach((el) => {
     const pt = S.song.parts[Number(el.dataset.range)];
     el.textContent = noteName(pt.min + S.transpose) + '〜' + noteName(pt.max + S.transpose);
@@ -1590,7 +1697,9 @@ function updateRanges() {
 }
 function selectPart(i) {
   if (R || !S.song) return; // 録音中は切り替えない（その録音の判定記録が消えるため）
+  if (!Number.isInteger(i) || i < 0 || i >= S.song.parts.length) return;
   S.sel = i;
+  $('partSelect').value = String(i);
   S.partName = S.song.parts[i].name;
   S.trail = [];
   S.score = { n: 0, ok: 0 };
@@ -1849,7 +1958,8 @@ function syncTransportUI() {
   $('playLbl').textContent = playingNow ? '一時停止' : '再生';
   $('playIcon').innerHTML = playingNow ? '<path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z"/>' : '<path d="M7 4.5v15L19.5 12z"/>';
   $('recBtn').setAttribute('aria-pressed', String(!!R));
-  $('recLbl').textContent = R ? '録音を止める' : '録音';
+  $('recLbl').textContent = R ? '録音停止' : '録音';
+  $('recBtn').setAttribute('aria-label', R ? '録音を止める' : '録音');
   $('playBtn').disabled = !has || !!R;
   $('rate').disabled = !!R;
   $('keyDown').disabled = !!R || S.transpose <= -12;
@@ -1858,13 +1968,15 @@ function syncTransportUI() {
   $('loopBtn').disabled = !has || !!R;
   if (R && marking) { marking = null; kick(); } // 録音が始まったら、しおり作りはやめる
   document.querySelectorAll('.chip').forEach((el) => { el.disabled = !!R; });
+  $('partSelect').disabled = !has || !!R;
   document.querySelectorAll('input[name="mode"]').forEach((el) => { el.disabled = !!R; });
   syncLoopUI();
 }
 function syncMicUI() {
   const on = !!A.mic;
   $('micBtn').setAttribute('aria-pressed', String(on));
-  $('micLbl').textContent = on ? 'マイクをオフ' : 'マイクをオン';
+  $('micLbl').textContent = on ? 'マイク ON' : 'マイク OFF';
+  $('micBtn').setAttribute('aria-label', on ? 'マイクをオフ（現在オン）' : 'マイクをオン（現在オフ）');
   $('micBtn').style.setProperty('--lvl', '0');
 }
 function updateReadouts() {
@@ -1887,7 +1999,10 @@ function updateReadouts() {
     tgt = targetAt(viewTime(), null);
   }
   $('hTarget').textContent = tgt != null ? noteName(tgt) : '—';
-  $('hYou').textContent = you != null ? noteName(you) : (A.mic || T.mode === 'review' ? '…' : 'オフ');
+  $('hYou').textContent = you != null ? noteName(you) : '—';
+  $('hYouStatus').textContent = you != null ? '' : (A.mic || T.mode === 'review' ? '音を待っています' : 'マイクOFF');
+  const atEnd = S.song && viewTime() >= S.song.duration - 0.01;
+  $('hTargetStatus').textContent = tgt != null ? '' : !S.song ? '曲を開いてください' : atEnd ? '曲の終わり' : '休符';
   const box = $('hDiffBox');
   box.classList.toggle('ok', ok === true);
   box.classList.toggle('off', ok === false);
@@ -1899,12 +2014,12 @@ function updateReadouts() {
     if (a < 100) $('hDiff').innerHTML = sign + Math.round(a) + '<span class="u">セント</span>';
     else {
       const semi = Math.round(a / 100);
-      $('hDiff').innerHTML = semi === 12 ? '1<span class="u">オクターブ' + (cents > 0 ? '上' : '下') + '</span>' : sign + semi + '<span class="u">半音</span>';
+      $('hDiff').innerHTML = sign + semi + '<span class="u">半音</span>';
     }
     const shape = ok
       ? '<svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="currentColor"/></svg>'
       : '<svg viewBox="0 0 14 14"><path d="M7 0l1.6 4 4.2-1.2-2.6 3.5 2.6 3.5-4.2-1.2L7 14 5.4 9.6l-4.2 1.2 2.6-3.5L1.2 2.8l4.2 1.2z" fill="currentColor"/></svg>';
-    $('hVerdict').innerHTML = shape + '<span>' + (ok ? '合っています' : cents > 0 ? '高め・下げて' : '低め・上げて') + '</span>';
+    $('hVerdict').innerHTML = shape + '<span>' + (ok ? '合ってる' : a >= 2400 ? '音を確認' : cents > 0 ? '高め ↓' : '低め ↑') + '</span>';
   }
   // 位置と時間
   if (S.song) {
@@ -1916,7 +2031,7 @@ function updateReadouts() {
   }
   const sc = T.mode === 'review' && T.reviewTake ? T.reviewTake.score : S.score;
   const md = MODES[T.mode === 'review' && T.reviewTake ? T.reviewTake.mode : S.mode];
-  $('scoreLbl').textContent = sc.n > 30 ? (T.mode === 'review' ? 'このテイク' : '今回') + '（' + (md ? md.mark + md.name : '') + '）の音程一致 ' + Math.round((100 * sc.ok) / sc.n) + '%' : '';
+  $('scoreLbl').textContent = sc.n > 30 ? (T.mode === 'review' ? 'このテイク' : '今回') + '（' + (md ? md.mark + md.name : '') + '）の音程一致 ' + Math.round((100 * sc.ok) / sc.n) + '%' : '音程一致 —';
   if (A.mic) $('micBtn').style.setProperty('--lvl', String(clamp(S.level * 7, 0, 1)));
 }
 
@@ -1935,6 +2050,28 @@ function readColors() {
     loop: v('--loop'), loopEdge: v('--loop-edge'),
   };
   kick();
+}
+let layoutFrame = 0;
+function requestPracticeLayout() {
+  if (layoutFrame) return;
+  layoutFrame = requestAnimationFrame(() => { layoutFrame = 0; fitPractice(); });
+}
+function fitPractice() {
+  if (!S.song || !matchMedia('(max-width: 700px)').matches) {
+    document.documentElement.style.removeProperty('--practice-roll-height');
+    return;
+  }
+  const practice = $('practice'), roll = $('rollWrap');
+  // offsetTop はスクロールしても変わらない。ブラウザの表示領域だけ更新する。
+  const viewport = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const top = practice.getBoundingClientRect().top + window.scrollY;
+  const rest = practice.getBoundingClientRect().height - roll.getBoundingClientRect().height;
+  const available = Math.floor(viewport - top - rest - 10);
+  const height = clamp(available, 110, 640);
+  const next = height + 'px';
+  if (document.documentElement.style.getPropertyValue('--practice-roll-height') !== next) {
+    document.documentElement.style.setProperty('--practice-roll-height', next);
+  }
 }
 function resize() {
   const r = wrap.getBoundingClientRect();
@@ -2004,13 +2141,19 @@ function drawPreview(W, H) {
 }
 const GUT = 56; // ピアノロール左の音名の幅
 // ピアノロール上の横位置 x（CSSピクセル）→ 曲の時刻
+function pixelsPerSecond() {
+  if (!matchMedia('(max-width: 700px)').matches || zoomTouched || !S.song) return S.zoom;
+  const beats = S.song.bars[barIndexAt(viewTime())]?.num || 4;
+  const seconds = 2 * beats * 60 / (S.song.bpm || 100);
+  return clamp((view.w - GUT) * 0.7 / seconds, 25, 140);
+}
 function timeAtX(x) {
   const playX = GUT + (view.w - GUT) * 0.3;
-  return clamp(viewTime() + (x - playX) / S.zoom, 0, S.song.duration);
+  return clamp(viewTime() + (x - playX) / pixelsPerSecond(), 0, S.song.duration);
 }
 // なぞった位置を、近くの音符の始まり・終わりや小節線に合わせる（12ピクセル以内）
 function snapTime(t) {
-  const tol = 12 / S.zoom;
+  const tol = 12 / pixelsPerSecond();
   let best = t, bd = tol;
   const near = (c) => { const d = Math.abs(c - t); if (d < bd) { bd = d; best = c; } };
   for (let i = lowerBound(S.events, t - 30, 's'); i < S.events.length && S.events[i].s <= t + tol; i++) {
@@ -2032,7 +2175,7 @@ function draw() {
   const [lo, hi] = viewRange();
   const rowH = (bot - top) / (hi - lo + 1);
   const Y = (m) => top + (hi + 0.5 - m) * rowH;
-  const px = S.zoom;
+  const px = pixelsPerSecond();
   const playX = gut + (W - gut) * 0.3;
   const tv = viewTime();
   const X = (t) => playX + (t - tv) * px;
@@ -2047,6 +2190,21 @@ function draw() {
     if (isBlack(m)) { g.fillStyle = C.rowAlt; g.fillRect(gut, y, W - gut, rowH); }
     if (pc(m) === 0) { g.fillStyle = C.line; g.fillRect(gut, Math.round(y + rowH) - 1, W - gut, 1); }
   }
+  let above = false, below = false;
+  if (S.showOthers) S.song.parts.forEach((pt, i) => {
+    if (i === S.sel) return;
+    for (let n = lowerBound(pt.notes, t0 - 20, 's'); n < pt.notes.length && pt.notes[n].s <= t1; n++) {
+      const note = pt.notes[n];
+      if (note.e >= t0) { above ||= note.m + tr > hi; below ||= note.m + tr < lo; }
+    }
+  });
+  const rangeText = above || below ? (above && below ? '↕' : above ? '↑' : '↓') + ' 範囲外にも他パートの音' : '';
+  $('rangeNotice').textContent = rangeText;
+  $('rangeNotice').hidden = !rangeText;
+  const voice = S.live && S.live.midi;
+  const voiceText = voice != null && (voice > hi || voice < lo) ? (voice > hi ? '↑ 表示より上 ' : '↓ 表示より下 ') + noteName(voice) : '';
+  $('voiceNotice').textContent = voiceText;
+  $('voiceNotice').hidden = !voiceText || T.mode === 'review';
   // 区間リピートの範囲
   if (looping()) {
     const [la, lb] = loopRange();
@@ -2090,15 +2248,18 @@ function draw() {
     g.fillText(String(bars[i].n), x + 4, top / 2 + 1);
   }
   const barH = Math.max(5, Math.min(rowH * 0.72, 26));
+  const mineColor = () => S.pstate[S.sel].color;
   const drawNotes = (ns, colorFor) => {
     for (let i = lowerBound(ns, t0 - 20, 's'); i < ns.length && ns[i].s <= t1; i++) {
       const n = ns[i];
       if (n.e < t0) continue;
+      if (n.m + tr < lo || n.m + tr > hi) continue;
       const x0 = X(n.s), x1 = X(n.e);
       const y = Y(n.m + tr);
       g.fillStyle = colorFor(n);
       rrect(x0, y - barH / 2, Math.max(3, x1 - x0 - 1.5), barH, barH / 2);
       g.fill();
+      if (colorFor === mineColor) { g.strokeStyle = C.ink; g.lineWidth = 0.8; g.stroke(); }
     }
   };
   // ほかのパートは、そのパートの色をうすく。自分のパートは濃く、今の音は縁取りする
@@ -2107,9 +2268,8 @@ function draw() {
     S.song.parts.forEach((pt, i) => { if (i !== S.sel) drawNotes(pt.notes, () => S.pstate[i].color); });
   }
   const mine = S.song.parts[S.sel];
-  const myColor = S.pstate[S.sel].color;
   g.globalAlpha = 1;
-  drawNotes(mine.notes, () => myColor);
+  drawNotes(mine.notes, mineColor);
   for (const n of mine.notes) {
     if (n.s > tv) break;
     if (tv >= n.e) continue;
@@ -2325,8 +2485,9 @@ document.querySelectorAll('input[name="tol"]').forEach((el) => el.addEventListen
 document.querySelectorAll('input[name="naming"]').forEach((el) => el.addEventListener('change', () => { S.naming = el.value; updateRanges(); savePrefs(); kick(); }));
 $('octFree').addEventListener('change', (e) => { S.octaveFree = e.target.checked; savePrefs(); });
 $('others').addEventListener('change', (e) => { S.showOthers = e.target.checked; savePrefs(); kick(); });
-$('zoom').addEventListener('input', (e) => { S.zoom = Number(e.target.value); kick(); });
+$('zoom').addEventListener('input', (e) => { zoomTouched = true; $('autoZoom').checked = false; S.zoom = Number(e.target.value); kick(); });
 $('zoom').addEventListener('change', savePrefs);
+$('autoZoom').addEventListener('change', (e) => { zoomTouched = !e.target.checked; savePrefs(); kick(); });
 $('lat').addEventListener('input', (e) => { latTouched = true; S.latMs = Number(e.target.value); $('latOut').textContent = S.latMs + 'ミリ秒'; });
 $('lat').addEventListener('change', savePrefs);
 $('latOut').textContent = S.latMs + 'ミリ秒';
@@ -2364,7 +2525,7 @@ cv.addEventListener('pointermove', (e) => {
     kick();
     return;
   }
-  T.pos = clamp(drag.pos - (e.clientX - drag.x) / S.zoom, 0, S.song.duration);
+  T.pos = clamp(drag.pos - (e.clientX - drag.x) / pixelsPerSecond(), 0, S.song.duration);
   kick();
 });
 const endDrag = () => { drag = null; kick(); };
@@ -2422,7 +2583,8 @@ window.addEventListener('pagehide', onHidden);
   if (p.tol === 25 || p.tol === 50) S.tol = p.tol;
   if (typeof p.octaveFree === 'boolean') S.octaveFree = p.octaveFree;
   if (typeof p.showOthers === 'boolean') S.showOthers = p.showOthers;
-  if (p.zoom >= 60 && p.zoom <= 320) S.zoom = p.zoom;
+  if (p.zoom >= 25 && p.zoom <= 320) S.zoom = p.zoom;
+  zoomTouched = p.zoomTouched === true || (p.zoomTouched == null && p.zoom != null && p.zoom !== 140);
   if (typeof p.ec === 'boolean') S.ec = p.ec;
   if (typeof p.countIn === 'boolean') S.countIn = p.countIn;
   if (MODES[p.mode]) S.mode = p.mode;
@@ -2433,6 +2595,7 @@ window.addEventListener('pagehide', onHidden);
   $('octFree').checked = S.octaveFree;
   $('others').checked = S.showOthers;
   $('zoom').value = S.zoom;
+  $('autoZoom').checked = !zoomTouched;
   $('ec').checked = S.ec;
   $('lat').value = S.latMs;
   $('latOut').textContent = S.latMs + 'ミリ秒';
@@ -2447,9 +2610,19 @@ window.addEventListener('pagehide', onHidden);
 })();
 
 new ResizeObserver(resize).observe(wrap);
+const practiceObserver = new ResizeObserver(requestPracticeLayout);
+[$('practice'), $('transport'), document.querySelector('.top'), $('partBar'), $('modeBar')].forEach((el) => practiceObserver.observe(el));
+window.addEventListener('resize', requestPracticeLayout);
+matchMedia('(max-width: 700px)').addEventListener('change', (e) => {
+  $('fileMenu').open = !e.matches || !S.song;
+  requestPracticeLayout();
+});
+if (window.visualViewport) window.visualViewport.addEventListener('resize', requestPracticeLayout);
+document.addEventListener('toggle', requestPracticeLayout, true);
+$('partSelect').addEventListener('change', (e) => selectPart(Number(e.target.value)));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(kick);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { kick(); requestPracticeLayout(); });
 readColors();
 resize();
 syncTransportUI();
