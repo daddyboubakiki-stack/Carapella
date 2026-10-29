@@ -1,0 +1,35 @@
+{
+ "satb_sjis.mid": {
+  "parts": [
+   "ソプラノ",
+   "アルト",
+   "テナー",
+   "ベース"
+  ],
+  "notes": 12,
+  "duration": 7.0,
+  "title": "テスト合唱曲",
+  "bars": 4,
+  "lyrics_part0": 12,
+  "bpm": 120
+ },
+ "format0_4ch.mid": {
+  "parts": 4,
+  "notes": 8,
+  "duration": 4.7625
+ },
+ "karaoke.kar": {
+  "parts": 1,
+  "notes": 6,
+  "lyrics_any": 6
+ },
+ "chords_one_track.mid": {
+  "parts": 1,
+  "notes": 8
+ },
+ "wrapped.rmi": {
+  "parts": 4,
+  "notes": 8,
+  "duration": 4.7625
+ }
+}
