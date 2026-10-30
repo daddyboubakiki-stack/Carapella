@@ -590,7 +590,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
       <div class="set">
         <label class="lbl" for="verticalZoom">縦の拡大 <output id="verticalZoomValue">100%</output></label>
-        <input type="range" id="verticalZoom" min="50" max="250" step="10" value="100" style="width:100%">
+        <input type="range" id="verticalZoom" min="25" max="250" step="5" value="100" style="width:100%">
       </div>
       <div class="set">
         <label class="lbl" for="zoom">横の拡大</label>
@@ -2262,7 +2262,7 @@ function drawChord(W, H) {
   g.fillRect(0, 0, gut, H);
   g.fillStyle = C.line;
   g.fillRect(gut - 1, 0, 1, H);
-  const fs = Math.max(9, Math.min(20, rowH - 1));
+  const fs = Math.max(6, Math.min(20, rowH - 1));
   g.textAlign = 'right';
   g.textBaseline = 'middle';
   for (let m = lo; m <= hi; m++) {
@@ -2750,7 +2750,7 @@ function draw() {
     g.fillStyle = C.muted;
     g.fillText(String(bars[i].n), x + 4, top / 2 + 1);
   }
-  const barH = Math.max(5, Math.min(rowH * 0.72, 26));
+  const barH = Math.max(2, Math.min(rowH * 0.72, 26));
   const mineColor = () => S.pstate[S.sel].color;
   const drawNotes = (ns, colorFor) => {
     for (let i = lowerBound(ns, t0 - 20, 's'); i < ns.length && ns[i].s <= t1; i++) {
@@ -2788,7 +2788,7 @@ function draw() {
   g.globalAlpha = 1;
   // 歌詞
   if (mine.lyrics.length && rowH >= 7) {
-    g.font = '700 ' + Math.round(clamp(12 * view.verticalZoom, 10, 20)) + 'px ' + FONT;
+    g.font = '700 ' + Math.round(clamp(Math.min(12 * view.verticalZoom, rowH * 0.8), 6, 20)) + 'px ' + FONT;
     g.textAlign = 'left';
     g.textBaseline = 'top';
     g.fillStyle = C.ink;
@@ -2891,7 +2891,7 @@ function draw() {
   g.fillRect(0, 0, gut, H);
   g.fillStyle = C.line;
   g.fillRect(gut - 1, 0, 1, H);
-  const fs = Math.max(9, Math.min(20, rowH - 1));
+  const fs = Math.max(6, Math.min(20, rowH - 1));
   g.font = '500 ' + fs + 'px ' + FONT;
   g.textAlign = 'right';
   g.textBaseline = 'middle';
@@ -2991,7 +2991,7 @@ $('others').addEventListener('change', (e) => { S.showOthers = e.target.checked;
 $('zoom').addEventListener('input', (e) => { zoomTouched = true; $('autoZoom').checked = false; S.zoom = Number(e.target.value); kick(); });
 $('zoom').addEventListener('change', savePrefs);
 $('verticalZoom').addEventListener('input', (e) => {
-  view.verticalZoom = clamp(Number(e.target.value) / 100, 0.5, 2.5);
+  view.verticalZoom = clamp(Number(e.target.value) / 100, 0.25, 2.5);
   $('verticalZoomValue').textContent = Math.round(view.verticalZoom * 100) + '%';
   syncViewUI(); kick();
 });
