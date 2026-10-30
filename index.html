@@ -244,6 +244,9 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .ctl { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
 .ctl output { font-variant-numeric: tabular-nums; min-width: 3.2em; color: var(--muted); }
 .tip { font-size: 0.85rem; color: var(--muted); margin: 6px 2px 0; }
+.bg-audio { width: 100%; display: block; margin: 10px 0 4px; }
+.bg-opts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.bg-status { color: var(--muted); font-size: 0.88rem; margin: 8px 0; }
 
 details.box { margin-top: 18px; border-top: 1.5px solid var(--line); padding-top: 8px; }
 details.box summary { cursor: pointer; font-weight: 700; font-size: 1.05rem; padding: 6px 0; }
@@ -537,6 +540,17 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <button class="iconbtn" id="keyUp" type="button" aria-label="キーを半音上げる"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
     </div>
   </div>
+  <details class="box" id="bgPanel" hidden>
+    <summary>🎧 聴くだけ（バックグラウンド再生）</summary>
+    <p class="tip">MIDIを端末内で音声に変換します。パート別の音量・ミュート・音色と、テンポ・キー・ガイド音量を反映します（練習段階①〜④は反映しません）。マイク・採点・録音は使いません。</p>
+    <div class="bg-opts">
+      <button class="btn primary" id="bgBuild" type="button">音声を準備</button>
+      <label><input id="bgRepeat" type="checkbox">曲全体を繰り返す</label>
+    </div>
+    <p class="bg-status" id="bgStatus" role="status">「音声を準備」を押すと再生プレイヤーが出ます。</p>
+    <audio id="bgAudio" class="bg-audio" controls preload="none" hidden aria-label="聴くだけ用プレイヤー"></audio>
+    <p class="tip">設定を変えたら音声を作り直してください。端末やブラウザによって画面ロック中の再生に制限があります。</p>
+  </details>
   <p class="tip">イヤホンで使ってください。スピーカーでガイドを流すと、マイクがその音を拾ってしまい、歌っていなくても「合っている」になります。③④の段階では自分のパートの音が鳴らないので、この影響は小さくなります。iPhoneでガイドが聞こえない時は、消音モード（マナーモード）を切ってみてください。</p>
 
   <details class="box" id="partMix">
@@ -984,6 +998,8 @@ function setAudioSession() {
   } catch (e) { /* 未対応なら何もしない */ }
 }
 function ensureCtx() {
+  const bgAudio = $('bgAudio');
+  if (bgAudio && !bgAudio.paused) bgAudio.pause();
   setAudioSession();
   if (!A.ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1341,6 +1357,128 @@ function giveStartNote() {
   say(part.name + 'の音：' + noteName(m), true);
 }
 
+
+// ===== 画面を消して聴くための音声プレイヤー =====
+// 通常の MIDI 再生はタイマー依存なので、聴くだけ用に WAV を事前生成する。
+let bgVersion = 0, bgUrl = null;
+function bgReset() {
+  bgVersion++;
+  const audio = $('bgAudio');
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+  audio.hidden = true;
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+  bgUrl = null;
+  $('bgBuild').disabled = false;
+  $('bgBuild').textContent = '音声を準備';
+  $('bgStatus').textContent = '「音声を準備」を押すと再生プレイヤーが出ます。';
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'none';
+}
+function bgWav(buffer) {
+  const samples = buffer.getChannelData(0);
+  const bytes = new ArrayBuffer(44 + samples.length * 2);
+  const d = new DataView(bytes);
+  const str = (p, x) => { for (let i = 0; i < x.length; i++) d.setUint8(p + i, x.charCodeAt(i)); };
+  str(0, 'RIFF'); d.setUint32(4, 36 + samples.length * 2, true);
+  str(8, 'WAVE'); str(12, 'fmt '); d.setUint32(16, 16, true);
+  d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, buffer.sampleRate, true);
+  d.setUint32(28, buffer.sampleRate * 2, true);
+  d.setUint16(32, 2, true); d.setUint16(34, 16, true);
+  str(36, 'data'); d.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.max(-1, Math.min(1, samples[i]));
+    d.setInt16(44 + i * 2, v < 0 ? Math.round(v * 32768) : Math.round(v * 32767), true);
+  }
+  return new Blob([bytes], { type: 'audio/wav' });
+}
+function bgNote(ctx, waves, ev, dest, tone, rate, tr, end) {
+  const tn = TONES[tone] || TONES.soft;
+  const t = ev.s / rate, dur = Math.max(0.04, (ev.e - ev.s) / rate);
+  if (t >= end - 0.02) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.setPeriodicWave(waves[tone] || waves.soft);
+  o.frequency.value = 440 * Math.pow(2, (ev.m + tr - 69) / 12);
+  const peak = 0.22 * tn.gain * (0.45 + 0.55 * (ev.v / 127));
+  const atk = Math.min(tn.atk || 0.02, dur / 3);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(peak, t + atk);
+  g.gain.setTargetAtTime(peak * 0.7, t + atk, 0.3);
+  g.gain.setTargetAtTime(0, t + dur, 0.025);
+  let last = o;
+  for (const [freq, q, db] of tn.formants || []) {
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'peaking'; filter.frequency.value = freq;
+    filter.Q.value = q; filter.gain.value = db;
+    last.connect(filter); last = filter;
+  }
+  if (tn.lowpass) {
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = tn.lowpass;
+    last.connect(filter); last = filter;
+  }
+  last.connect(g); g.connect(dest);
+  o.start(t); o.stop(Math.min(end, t + dur + 0.2));
+}
+async function bgPrepare() {
+  if (!S.song) return;
+  if (T.playing) pause();
+  if (A.mic) micOff();
+  const audio = $('bgAudio');
+  audio.pause();
+  audio.hidden = true;
+  const version = ++bgVersion, button = $('bgBuild');
+  button.disabled = true;
+  button.textContent = '音声を作成中…';
+  $('bgStatus').textContent = '端末内で音声を作っています。完成したら再生ボタンを押してください。';
+  try {
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Off) throw new Error('このブラウザは音声の事前生成に対応していません。');
+    const rate = S.rate, end = S.song.duration / rate + 0.4;
+    if (!Number.isFinite(end) || end <= 0 || end > 720) throw new Error('12分以内の曲で試してください。');
+    const levels = S.pstate.map(x => x.muted ? 0 : x.vol);
+    if (!levels.some(x => x > 0) || S.guideVol <= 0) throw new Error('パートとガイドの音量を確認してください。');
+    const ctx = new Off(1, Math.ceil(end * 22050), 22050);
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -3; compressor.knee.value = 0; compressor.ratio.value = 20;
+    compressor.attack.value = 0.002; compressor.release.value = 0.1;
+    compressor.connect(ctx.destination);
+    const guide = ctx.createGain();
+    guide.gain.value = S.guideVol; guide.connect(compressor);
+    const dests = levels.map(level => {
+      const g = ctx.createGain();
+      g.gain.value = level; g.connect(guide);
+      return g;
+    });
+    const tones = S.pstate.map(x => x.tone), waves = {};
+    for (const [name, tn] of Object.entries(TONES)) {
+      const amps = [0, ...tn.amps];
+      waves[name] = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
+    }
+    for (const event of S.events) {
+      if (levels[event.part] > 0) bgNote(ctx, waves, event, dests[event.part], tones[event.part], rate, S.transpose, end);
+    }
+    const rendered = await ctx.startRendering();
+    if (version !== bgVersion) return;
+    const wav = bgWav(rendered);
+    if (version !== bgVersion) return;
+    if (bgUrl) URL.revokeObjectURL(bgUrl);
+    bgUrl = URL.createObjectURL(wav);
+    audio.src = bgUrl;
+    audio.loop = $('bgRepeat').checked;
+    audio.hidden = false;
+    $('bgStatus').textContent = '完成！ 再生ボタンを押してください。画面を消して聴けるか試してみてね。';
+  } catch (e) {
+    if (version === bgVersion) $('bgStatus').textContent = '音声の準備に失敗しました：' + (e.message || '不明なエラー');
+  } finally {
+    if (version === bgVersion) {
+      button.disabled = false;
+      button.textContent = '現在の設定で作り直す';
+    }
+  }
+}
+
 // ===== マイクと音程判定 =====
 const detect = makePitchDetector();
 let sm = { hist: [], miss: 3, last: null };
@@ -1622,6 +1760,7 @@ function demoSong() {
 }
 function setSong(song, label) {
   if (T.playing) pause();
+  bgReset();
   S.song = song;
   view.follow = true;
   view.time = 0;
@@ -1658,6 +1797,7 @@ function setSong(song, label) {
   $('songMeta').textContent = song.parts.length + 'パート · ' + fmt(song.duration) + (song.bpm ? ' · ♩＝' + song.bpm : '');
   $('songMeta').hidden = false;
   document.body.classList.add('has-song');
+  $('bgPanel').hidden = false;
   $('fileMenu').open = !matchMedia('(max-width: 700px)').matches;
   $('empty').hidden = true;
   $('seek').max = String(song.duration);
@@ -2962,6 +3102,29 @@ $('chips').addEventListener('keydown', (e) => {
   if (c) { c.focus(); c.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
 });
 $('playBtn').addEventListener('click', togglePlay);
+$('bgBuild').addEventListener('click', bgPrepare);
+$('bgRepeat').addEventListener('change', e => { $('bgAudio').loop = e.target.checked; });
+$('bgAudio').addEventListener('play', () => {
+  if (T.playing) pause();
+  if (A.mic) micOff();
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 未対応 */ }
+  if (navigator.mediaSession) {
+    if (typeof MediaMetadata !== 'undefined') {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: S.label || 'お手本', artist: 'アカペラ練習帳' });
+    }
+    navigator.mediaSession.playbackState = 'playing';
+    try {
+      navigator.mediaSession.setActionHandler('play', () => $('bgAudio').play());
+      navigator.mediaSession.setActionHandler('pause', () => $('bgAudio').pause());
+      navigator.mediaSession.setActionHandler('seekto', d => {
+        if (Number.isFinite(d.seekTime)) $('bgAudio').currentTime = d.seekTime;
+      });
+    } catch (e) { /* 未対応の操作は使わない */ }
+  }
+});
+$('bgAudio').addEventListener('pause', () => {
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
+});
 $('rewBtn').addEventListener('click', () => seekTo(0));
 $('recBtn').addEventListener('click', () => (R ? pause() : startRecording()));
 $('micBtn').addEventListener('click', () => (A.mic ? micOff() : micOn()));
@@ -3204,6 +3367,7 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   togglePlay();
 });
+window.addEventListener('beforeunload', () => { if (bgUrl) URL.revokeObjectURL(bgUrl); });
 window.addEventListener('beforeunload', () => { if (A.mic) A.mic.stream.getTracks().forEach((t) => t.stop()); });
 // ほかのアプリに切り替えた・画面を消した時は一時停止する（裏ではガイドの音を正しく鳴らし続けられないため）
 const onHidden = () => {
