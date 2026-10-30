@@ -479,7 +479,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。2本指で広げる・つまむと、バーの長さ（時間の拡大・縮小）が変わります（パソコンはCtrl＋ホイール、トラックパッドのピンチ）。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。2本指を横に広げる・つまむとバーの長さ、縦に広げる・つまむと音の間隔が変わります（パソコンはCtrl＋ホイールでバーの長さ、Ctrl＋Shift＋ホイールで音の間隔）。「音域を戻す」で上下の位置と音の間隔が元に戻ります。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -592,6 +592,11 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
         <label class="lbl" for="zoom">横の拡大</label>
         <input type="range" id="zoom" min="25" max="320" step="5" value="140" style="width:100%">
         <label class="check"><input type="checkbox" id="autoZoom" checked><span>画面幅に合わせて、この先およそ2小節を表示（スマホ）</span></label>
+      </div>
+      <div class="set">
+        <label class="lbl" for="verticalZoom">縦の拡大 <output id="verticalZoomValue">100%</output></label>
+        <input type="range" id="verticalZoom" min="25" max="250" step="5" value="100" style="width:100%">
+        <p class="help">音程バーの上で2本指を縦に広げる・つまんでも変えられます（横に広げるとバーの長さ）。「音域を戻す」で100%に戻ります。</p>
       </div>
       <div class="set">
         <label class="lbl" for="lat">声の遅れ補正 <output id="latOut">—</output></label>
@@ -961,7 +966,7 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}') || {}; } catch (e) { return {}; }
 }
 function savePrefs() {
-  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
+  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, vZoom: view.verticalZoom, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
   if (latTouched) p.latMs = S.latMs;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 記憶できなくても練習はできる */ }
 }
@@ -2510,13 +2515,14 @@ function updateReadouts() {
 const cv = $('roll');
 const g = cv.getContext('2d');
 const wrap = $('rollWrap');
-const view = { w: 0, h: 0, dpr: 1, follow: true, time: 0, pitchOffset: 0, wheelPitch: 0 };
+const view = { w: 0, h: 0, dpr: 1, follow: true, time: 0, pitchOffset: 0, verticalZoom: 1, wheelPitch: 0 };
+const V_ZOOM_MIN = 0.25, V_ZOOM_MAX = 2.5; // 縦の拡大（1＝100%）。表示する音の段の数が 1/拡大率 倍になる
 // 表示位置は再生の T.pos / T.t0 と独立。手動で動かしても音は飛ばさない。
 function displayTime() { return view.follow ? viewTime() : view.time; }
 function syncViewUI() {
   $('plotStatus').textContent = view.follow ? '自動追従中' : '手動表示';
   $('followBtn').disabled = view.follow;
-  $('pitchViewReset').disabled = view.pitchOffset === 0;
+  $('pitchViewReset').disabled = view.pitchOffset === 0 && (view.verticalZoom || 1) === 1;
   $('rollWrap').dataset.follow = String(view.follow);
 }
 function resumeFollow() {
@@ -2531,7 +2537,10 @@ function panToTime(t) {
 }
 function shiftPitch(offset) {
   const [lo, hi] = baseViewRange();
-  view.pitchOffset = clamp(Math.round(offset), -12 - lo, 139 - hi);
+  // 縦に縮めて段が増えていても、表示が MIDI −12〜139 の外へ出ない範囲で動かす
+  const count = pitchRows(lo, hi), center = (lo + hi) / 2, half = (count - 1) / 2;
+  const min = Math.ceil(-12 + half - center), max = Math.floor(139 - half - center);
+  view.pitchOffset = min <= max ? clamp(Math.round(offset), min, max) : 0;
   syncViewUI();
 }
 let C = {};
@@ -2597,9 +2606,18 @@ function baseViewRange() {
   if (hi - lo < 14) { const c = (hi + lo) / 2; lo = Math.floor(c - 7); hi = lo + 14; }
   return [lo, hi];
 }
+// 表示する音の範囲。縦の拡大の中心は、今見えている範囲の真ん中（今の音には合わせない＝勝手に動かない）
 function viewRange() {
   const [lo, hi] = baseViewRange();
-  return [lo + view.pitchOffset, hi + view.pitchOffset];
+  if ((view.verticalZoom || 1) === 1) return [lo + view.pitchOffset, hi + view.pitchOffset]; // 100%は今まで通り
+  const count = pitchRows(lo, hi);
+  const center = (lo + hi) / 2 + view.pitchOffset;
+  const low = clamp(Math.round(center - (count - 1) / 2), -12, Math.max(-12, 139 - count + 1));
+  return [low, low + count - 1];
+}
+// 縦の拡大で表示する段の数（5〜152段。152段＝MIDI −12〜139 の全部）
+function pitchRows(lo, hi) {
+  return clamp(Math.round((hi - lo + 1) / (view.verticalZoom || 1)), 5, 152);
 }
 function marker(x, y, k) {
   if (k === 'ok') {
@@ -2743,7 +2761,7 @@ function draw() {
     g.fillStyle = C.muted;
     g.fillText(String(bars[i].n), x + 4, top / 2 + 1);
   }
-  const barH = Math.max(5, Math.min(rowH * 0.72, 26));
+  const barH = Math.max(3, Math.min(rowH * 0.72, 26));
   const mineColor = () => S.pstate[S.sel].color;
   const drawNotes = (ns, colorFor) => {
     for (let i = lowerBound(ns, t0 - 20, 's'); i < ns.length && ns[i].s <= t1; i++) {
@@ -2781,7 +2799,7 @@ function draw() {
   g.globalAlpha = 1;
   // 歌詞
   if (mine.lyrics.length && rowH >= 7) {
-    g.font = '700 12px ' + FONT;
+    g.font = '700 ' + Math.round(clamp(Math.min(12 * (view.verticalZoom || 1), rowH * 0.8), 10, 20)) + 'px ' + FONT; // 縦に広げると歌詞も大きく（10〜20px）
     g.textAlign = 'left';
     g.textBaseline = 'top';
     g.fillStyle = C.ink;
@@ -2884,19 +2902,19 @@ function draw() {
   g.fillRect(0, 0, gut, H);
   g.fillStyle = C.line;
   g.fillRect(gut - 1, 0, 1, H);
-  const fs = Math.max(9, Math.min(12, rowH - 1));
-  g.font = '500 ' + fs + 'px ' + FONT;
+  const fs = clamp(Math.round(rowH - 1), 9, 20); // 縦に縮めても9px未満にしない（読めなくなるため）
   g.textAlign = 'right';
   g.textBaseline = 'middle';
-  const tg = L ? L.target : null;
+  const tg = L && L.target != null ? Math.round(L.target) : null;
+  // 段が狭い時は、文字が重ならない間隔のCだけを出す（目標の音は必ず出し、その近くの名前は省く）
+  const octStep = Math.max(1, Math.ceil((fs + 3) / (12 * rowH)));
   for (let m = lo; m <= hi; m++) {
-    const show = rowH >= 12 ? true : rowH >= 7 ? !isBlack(m) : pc(m) === 0;
-    if (!show) continue;
-    const isT = tg != null && Math.round(tg) === m;
+    const isT = tg === m;
+    const show = rowH >= 12 ? true : rowH >= 7 ? !isBlack(m) : pc(m) === 0 && Math.floor(m / 12) % octStep === 0;
+    if (!isT && (!show || (tg != null && tg >= lo && tg <= hi && Math.abs(Y(m) - Y(tg)) < fs + 2))) continue;
+    g.font = (isT ? '700 ' : '500 ') + fs + 'px ' + FONT;
     g.fillStyle = isT ? S.pstate[S.sel].color : pc(m) === 0 ? C.ink : C.muted;
-    if (isT) g.font = '700 ' + fs + 'px ' + FONT;
     g.fillText(noteName(m), gut - 8, Y(m));
-    if (isT) g.font = '500 ' + fs + 'px ' + FONT;
   }
 }
 
@@ -3033,6 +3051,19 @@ function setZoom(z, anchorX) {
   if (keep != null) panToTime(keep - (anchorX - (GUT + (view.w - GUT) * 0.3)) / z);
   kick();
 }
+// 縦の拡大（音の段の間隔）を変える。中心は今見えている範囲の真ん中のまま
+function setVZoom(v) {
+  view.verticalZoom = clamp(Math.round(v * 20) / 20, V_ZOOM_MIN, V_ZOOM_MAX);
+  shiftPitch(view.pitchOffset); // 範囲が端からはみ出さないよう、上下の位置を直す
+  syncVZoomUI();
+  kick();
+}
+function syncVZoomUI() {
+  const pct = Math.round((view.verticalZoom || 1) * 100);
+  $('verticalZoom').value = String(pct);
+  $('verticalZoomValue').textContent = pct + '%';
+  syncViewUI();
+}
 const fingerGap = () => { const [a, b] = [...fingers.values()]; return Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)); };
 const fingerMidX = () => { const [a, b] = [...fingers.values()]; return (a.x + b.x) / 2 - cv.getBoundingClientRect().left; };
 function endPinch() {
@@ -3045,7 +3076,13 @@ cv.addEventListener('pointerdown', (e) => {
   if (e.isPrimary === false || fingers.size >= 2) { // 2本目の指：長押し・タップ・表示の移動をやめて、ピンチでバーの長さを変える
     clearPress();
     drag = null;
-    if (fingers.size === 2) { pinch = { d0: fingerGap(), z0: pixelsPerSecond() }; try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+    if (fingers.size === 2) {
+      // 2本の指を結ぶ線が横寄りなら「バーの長さ」、縦寄りなら「音の間隔」。指を離すまで切り替えない
+      const [a, b] = [...fingers.values()];
+      const axis = Math.abs(a.x - b.x) >= Math.abs(a.y - b.y) ? 'x' : 'y';
+      pinch = { axis, d0: fingerGap(), z0: pixelsPerSecond(), v0: view.verticalZoom || 1 };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    }
     return;
   }
   if (e.button !== 0) return;
@@ -3068,7 +3105,11 @@ cv.addEventListener('pointerdown', (e) => {
 });
 cv.addEventListener('pointermove', (e) => {
   if (fingers.has(e.pointerId)) fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch && fingers.size >= 2) { setZoom(pinch.z0 * fingerGap() / pinch.d0, fingerMidX()); return; }
+  if (pinch && fingers.size >= 2) {
+    const k = fingerGap() / pinch.d0;
+    if (pinch.axis === 'x') setZoom(pinch.z0 * k, fingerMidX()); else setVZoom(pinch.v0 * k);
+    return;
+  }
   if (!drag || drag.id !== e.pointerId) return;
   if (press && press.id === e.pointerId) {
     if (press.long) return; // 長押しが成立した後は、指が動いても表示を動かさない
@@ -3111,11 +3152,14 @@ $('cpSing').addEventListener('click', () => cpPress('sing'));
 $('cpBack').addEventListener('click', exitChord);
 $('pickClose').addEventListener('click', () => setPick(null));
 $('followBtn').addEventListener('click', resumeFollow);
-$('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; syncViewUI(); kick(); });
+$('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; view.verticalZoom = 1; syncVZoomUI(); savePrefs(); kick(); });
+$('verticalZoom').addEventListener('input', (e) => setVZoom(Number(e.target.value) / 100));
+$('verticalZoom').addEventListener('change', savePrefs);
 cv.addEventListener('wheel', (e) => {
   if (!S.song) return;
   e.preventDefault();
   // Ctrl＋ホイール（トラックパッドのピンチも同じ）は、バーの長さを変える。マウスのホイール1目盛りで約1.3倍まで
+  if (e.ctrlKey && e.shiftKey) { setVZoom((view.verticalZoom || 1) * Math.exp(-clamp(e.deltaY || e.deltaX, -25, 25) * 0.01)); savePrefs(); return; } // Ctrl＋Shift：音の間隔
   if (e.ctrlKey) { setZoom(pixelsPerSecond() * Math.exp(-clamp(e.deltaY, -25, 25) * 0.01), e.clientX - cv.getBoundingClientRect().left); savePrefs(); return; }
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? view.h : 1;
   const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
@@ -3177,6 +3221,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   if (typeof p.octaveFree === 'boolean') S.octaveFree = p.octaveFree;
   if (typeof p.showOthers === 'boolean') S.showOthers = p.showOthers;
   if (p.zoom >= 25 && p.zoom <= 320) S.zoom = p.zoom;
+  if (p.vZoom >= V_ZOOM_MIN && p.vZoom <= V_ZOOM_MAX) view.verticalZoom = p.vZoom;
   zoomTouched = p.zoomTouched === true || (p.zoomTouched == null && p.zoom != null && p.zoom !== 140);
   if (typeof p.ec === 'boolean') S.ec = p.ec;
   if (typeof p.countIn === 'boolean') S.countIn = p.countIn;
@@ -3189,6 +3234,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   $('octFree').checked = S.octaveFree;
   $('others').checked = S.showOthers;
   $('zoom').value = S.zoom;
+  syncVZoomUI();
   $('autoZoom').checked = !zoomTouched;
   $('ec').checked = S.ec;
   $('lat').value = S.latMs;
