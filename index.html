@@ -1767,7 +1767,7 @@ async function loadFile(file) {
 // ===== 曲専用リンク（共有）：Cloudflare Workers ＋ D1 の API（worker/）=====
 // ログインも合言葉もない。リンク（曲のID＋読み取りキー）を知っている人は誰でも開ける。
 // 共有をやめるための管理キーは、作った端末のブラウザにだけ保存する。
-const SHARE_API = ''; // 共有APIのURL（例：https://carapella-share.<アカウント>.workers.dev）。空の間は共有の機能を出さない
+const SHARE_API = 'https://carapella-share.daddyboubakiki.workers.dev'; // 共有APIのURL（worker/）。空にすると共有の機能を出さない
 const SHARE_KEY = 'acapella-renshucho:shares:v1';
 const SHARE_RE = /^#song=([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{22,64})$/;
 let sharePending = null; // 作っている途中の依頼（通信が切れても、同じIDで送り直して2つ作らない）
