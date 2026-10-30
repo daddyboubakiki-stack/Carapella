@@ -149,7 +149,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 
 .roll {
   position: relative; height: clamp(260px, 52vh, 560px); border-radius: 18px; overflow: hidden;
-  border: 1.5px solid var(--line); background: var(--roll); touch-action: pinch-zoom;
+  border: 1.5px solid var(--line); background: var(--roll); touch-action: none; /* 2本指のピンチはバーの長さに使う（ページの拡大は音程バーの外で） */
 }
 .roll canvas { display: block; width: 100%; height: 100%; cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* 音符をタップ・長押しした時の小さなシート（音程バーに重ねて出し、グラフの高さを変えない） */
@@ -479,7 +479,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。2本指で広げる・つまむと、バーの長さ（時間の拡大・縮小）が変わります（パソコンはCtrl＋ホイール、トラックパッドのピンチ）。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -2870,6 +2870,8 @@ function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 let seeking = false;
 let drag = null;
 let press = null; // 押している指：{ id, x, y, hit, timer, long, moved, canPick }
+const fingers = new Map(); // 音程バーに触れている指：id → { x, y }
+let pinch = null; // 2本指で広げる・つまむ途中：{ d0, z0 }
 $('openBtn').addEventListener('click', () => $('fileIn').click());
 $('openBtn2').addEventListener('click', () => $('fileIn').click());
 $('fileIn').addEventListener('change', (e) => { loadFile(e.target.files[0]); e.target.value = ''; });
@@ -2974,9 +2976,32 @@ function clearPress() {
   if (press) clearTimeout(press.timer);
   press = null;
 }
+// バーの長さ（1秒あたりの幅）を変える。anchorX：その位置の時刻を指の下に保つ（自動追従中は再生位置を基準にする）
+function setZoom(z, anchorX) {
+  z = clamp(Math.round(z), 25, 320);
+  const keep = anchorX != null && !view.follow ? timeAtX(anchorX) : null;
+  S.zoom = z;
+  zoomTouched = true;
+  $('zoom').value = String(z);
+  $('autoZoom').checked = false;
+  if (keep != null) panToTime(keep - (anchorX - (GUT + (view.w - GUT) * 0.3)) / z);
+  kick();
+}
+const fingerGap = () => { const [a, b] = [...fingers.values()]; return Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)); };
+const fingerMidX = () => { const [a, b] = [...fingers.values()]; return (a.x + b.x) / 2 - cv.getBoundingClientRect().left; };
+function endPinch() {
+  if (pinch) { pinch = null; savePrefs(); }
+}
 cv.addEventListener('pointerdown', (e) => {
   if (!S.song || CP.on) return; // 和音練習の画面では、表示の移動や音符選びはしない
-  if (e.isPrimary === false) { clearPress(); return; } // 2本目の指：長押し・タップは取り消す（ピンチはブラウザに任せる）
+  if (e.isPrimary !== false) { fingers.clear(); pinch = null; } // 最初の指：前の接触の記録が残っていても消す（離した知らせが届かなかった時のため）
+  fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (e.isPrimary === false || fingers.size >= 2) { // 2本目の指：長押し・タップ・表示の移動をやめて、ピンチでバーの長さを変える
+    clearPress();
+    drag = null;
+    if (fingers.size === 2) { pinch = { d0: fingerGap(), z0: pixelsPerSecond() }; try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+    return;
+  }
   if (e.button !== 0) return;
   clearPress();
   const r = cv.getBoundingClientRect();
@@ -2996,6 +3021,8 @@ cv.addEventListener('pointerdown', (e) => {
   kick();
 });
 cv.addEventListener('pointermove', (e) => {
+  if (fingers.has(e.pointerId)) fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && fingers.size >= 2) { setZoom(pinch.z0 * fingerGap() / pinch.d0, fingerMidX()); return; }
   if (!drag || drag.id !== e.pointerId) return;
   if (press && press.id === e.pointerId) {
     if (press.long) return; // 長押しが成立した後は、指が動いても表示を動かさない
@@ -3006,7 +3033,12 @@ cv.addEventListener('pointermove', (e) => {
   movePan(e.clientX, e.clientY);
 });
 const endDrag = () => { drag = null; kick(); };
+const liftFinger = (e) => {
+  fingers.delete(e.pointerId);
+  if (fingers.size < 2) endPinch(); // 残った1本の指では、離すまで何もしない（drag は始め直さない）
+};
 cv.addEventListener('pointerup', (e) => {
+  liftFinger(e);
   if (!drag || drag.id !== e.pointerId) return;
   const p = press && press.id === e.pointerId ? press : null;
   clearPress();
@@ -3015,8 +3047,8 @@ cv.addEventListener('pointerup', (e) => {
   if (p.long && p.hit) markFromPick(p.hit);
   else setPick(p.hit); // 何もない所のタップは、選択とシートを閉じるだけ（しおりは消さない）
 });
-cv.addEventListener('pointercancel', () => { clearPress(); endDrag(); });
-cv.addEventListener('lostpointercapture', () => { clearPress(); endDrag(); });
+cv.addEventListener('pointercancel', (e) => { liftFinger(e); clearPress(); endDrag(); });
+cv.addEventListener('lostpointercapture', (e) => { liftFinger(e); clearPress(); endDrag(); });
 cv.addEventListener('contextmenu', (e) => e.preventDefault()); // Android の長押しメニューを出さない
 $('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t, 1.5); });
 $('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
@@ -3032,8 +3064,10 @@ $('pickClose').addEventListener('click', () => setPick(null));
 $('followBtn').addEventListener('click', resumeFollow);
 $('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; syncViewUI(); kick(); });
 cv.addEventListener('wheel', (e) => {
-  if (!S.song || e.ctrlKey) return; // ブラウザのピンチ拡大は妨げない。
+  if (!S.song) return;
   e.preventDefault();
+  // Ctrl＋ホイール（トラックパッドのピンチも同じ）は、バーの長さを変える。マウスのホイール1目盛りで約1.3倍まで
+  if (e.ctrlKey) { setZoom(pixelsPerSecond() * Math.exp(-clamp(e.deltaY, -25, 25) * 0.01), e.clientX - cv.getBoundingClientRect().left); savePrefs(); return; }
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? view.h : 1;
   const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
   const dy = (e.shiftKey ? 0 : e.deltaY) * unit;
