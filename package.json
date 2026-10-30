@@ -3,7 +3,7 @@
   "private": true,
   "description": "アカペラサークルの個人の音取りのためのWebアプリ（index.html 1ファイル）",
   "scripts": {
-    "test:unit": "node tests/midi_test.js && node tests/pitch_test.js && node tests/vibrato.js && node tests/view_pan_test.js && node tests/input_settings_test.js",
+    "test:unit": "node tests/midi_test.js && node tests/pitch_test.js && node tests/vibrato.js && node tests/view_pan_test.js && node tests/input_settings_test.js && node tests/chord_recovery_test.js",
     "test:e2e": "node tests/e2e2.js all",
     "test:layout": "node tests/shot.js 390x664 375x548 412x780 1200x900",
     "test:marks": "node tests/marks.js 1280 800 && node tests/marks.js 390 664 && node tests/marks.js 360 640",
