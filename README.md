@@ -5,7 +5,8 @@
 **公開URL：https://daddyboubakiki-stack.github.io/Carapella/**
 
 - 1つのHTMLファイル（`index.html`）だけで動きます。外部ライブラリなし（フォントだけGoogle Fonts）
-- サーバーは使いません。MIDIはLINEなどで受け取り、スマホに保存してから開きます
+- 練習そのものにサーバーは使いません。MIDIはLINEなどで受け取り、スマホに保存してから開きます
+- 曲専用リンク（準備中）：MIDIをリンク1つで渡せるようにするため、Cloudflare Workers ＋ D1 の小さなAPI（`worker/`）を使います。設定が済むまで、この機能は画面に出ません
 - 対象：iPhone（Safari）・Android（Chrome）・パソコンのブラウザ
 
 ## できること
@@ -20,6 +21,7 @@
 - 再生前のカウント（1小節）。③④ではカウント中に自分の最初の音を鳴らす
 - テンポ（50〜125%）・キー（±12半音）の変更
 - 録音して、ガイドと当時の音程の線と一緒に聴き返す・保存する
+- 曲専用リンク（準備中）：開いたMIDIを「共有リンク」でリンクにし、LINEで送れる。リンクを知っている人は誰でも開ける（ログイン・合言葉なし）。作った端末から「共有をやめる」ができる。曲名とMIDIのほかは何も保存しない（IPアドレスも残さない）
 
 ## 使い方（開き方）
 
@@ -38,6 +40,7 @@
 | `docs/test-report.md` | テストの結果（1回目：元の版、2回目：改修版） |
 | `docs/device-checklist.md` | iPhone・Android実機で確かめることの一覧 |
 | `tests/` | 自動テスト（使い方は `tests/README.md`） |
+| `worker/` | 曲専用リンクのAPI（Cloudflare Workers ＋ D1）。設定の手順は `worker/README.md` |
 
 ## 状態（2026-10-29）
 

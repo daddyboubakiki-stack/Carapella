@@ -1,3 +1,5 @@
 node_modules/
 tests/out/
 .DS_Store
+.wrangler/
+.dev.vars

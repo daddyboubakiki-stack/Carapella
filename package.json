@@ -9,7 +9,9 @@
     "test:marks": "node tests/marks.js 1280 800 && node tests/marks.js 390 664 && node tests/marks.js 360 640",
     "test:parts": "node tests/parts.js",
     "test:chord": "node tests/chord.js 1280 800 && node tests/chord.js 390 664 && node tests/chord.js 360 640",
-    "test:zoom": "node tests/zoom.js"
+    "test:zoom": "node tests/zoom.js",
+    "test:share": "node tests/share_api_test.js && node tests/share_app.js",
+    "test:share:workerd": "node tests/share_workerd.js"
   },
   "devDependencies": {
     "playwright": "1.63.0"

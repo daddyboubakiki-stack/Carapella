@@ -1,0 +1,16 @@
+# アカペラ練習帳：曲専用リンクのAPI（Cloudflare Workers ＋ D1）
+# database_id は、D1 を作った時に表示される値に書き換える（README の手順2）
+name = "carapella-share"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# ブラウザから読み書きしてよいページ（公開ページ）。カンマ区切り
+ALLOWED_ORIGINS = "https://daddyboubakiki-stack.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "carapella-share"
+database_id = "ここにD1のIDを入れる"
+
+# IP_SALT（送り元の目印に使う秘密値）は、ファイルに書かずに秘密値として登録する（README の手順5）

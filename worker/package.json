@@ -1,0 +1,6 @@
+{
+  "name": "carapella-share",
+  "private": true,
+  "type": "module",
+  "description": "アカペラ練習帳：曲専用リンクのためのAPI（Cloudflare Workers ＋ D1）"
+}
