@@ -170,6 +170,22 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .picksheet .pickmsg { margin: 0; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .picksheet .pickmsg[hidden] { display: none; }
 .picksheet .pickmsg .btn { min-height: 28px; font-size: 0.78rem; padding: 0.1em 0.7em; }
+.cpbar {
+  position: absolute; z-index: 2; left: 62px; right: 6px; bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 5px 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.cpbar[hidden] { display: none; }
+.cpbar .btn { min-height: 34px; padding: 0.2em 0.8em; font-size: 0.85rem; }
+.cpbar .btn[aria-pressed="true"] { background: var(--note-bg); border-color: var(--loop-edge); }
+.cpbar .iconbtn { width: 32px; height: 32px; }
+.cpbar .cpwhere { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: center; }
+.cpbar .cpback { margin-left: auto; }
+@media (max-width: 700px) {
+  .cpbar { left: 60px; right: 4px; padding: 4px; gap: 4px; flex-wrap: nowrap; }
+  .cpbar .btn { padding: 0.15em 0.55em; font-size: 0.8rem; min-height: 32px; }
+  .cpbar .iconbtn { width: 30px; height: 30px; flex: none; }
+  .cpbar .cpwhere { display: none; } /* スマホでは1行に収めるため、小節の表示を省く */
+}
 .markhint { font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 .roll.drop { outline: 3px dashed var(--bar); outline-offset: -10px; }
 .empty {
@@ -432,9 +448,18 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <canvas id="roll" tabindex="0" aria-label="音程バーと、あなたの声の高さの線" aria-describedby="plotHelpText"></canvas>
       <span id="rangeNotice" class="range-notice" hidden></span>
       <span id="voiceNotice" class="voice-notice" hidden></span>
+      <div class="cpbar" id="cpBar" role="group" aria-label="和音練習" hidden>
+        <button class="iconbtn" id="cpPrev" type="button" aria-label="前の和音"><svg viewBox="0 0 24 24"><path d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z"/></svg></button>
+        <span class="cpwhere" id="cpWhere"></span>
+        <button class="iconbtn" id="cpNext" type="button" aria-label="次の和音"><svg viewBox="0 0 24 24"><path d="M8.6 18.6 10 20l8-8-8-8-1.4 1.4 6.6 6.6z"/></svg></button>
+        <button class="btn small" id="cpDemo" type="button" aria-pressed="false" title="全パートの和音を伸ばして鳴らします">お手本</button>
+        <button class="btn small" id="cpSing" type="button" aria-pressed="false" title="自分以外のパートを伸ばして鳴らし、マイクで自分の声を線にします">合わせる</button>
+        <button class="btn small cpback" id="cpBack" type="button">戻る</button>
+      </div>
       <div class="picksheet" id="pickSheet" role="group" aria-label="選んだ音" hidden>
         <p class="pickmsg" id="pickMsg" hidden><span id="pickMsgText"></span><button class="btn small" id="undoMarkBtn" type="button">取り消す</button></p>
         <button class="btn small" id="chordBtn" type="button">和音を鳴らす</button>
+        <button class="btn small" id="cpBtn" type="button">和音練習</button>
         <button class="btn small" id="markFromBtn" type="button" title="選んだ音から、しおりを始めます">ここから</button>
         <button class="btn small" id="markToBtn" type="button" title="選んだ音まで、しおりを延ばします">ここまで</button>
         <button class="iconbtn" id="pickClose" type="button" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg></button>
@@ -454,7 +479,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らしたり、しおりの始まり・終わりを決めたりできます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -1279,6 +1304,7 @@ function pause() {
 }
 function togglePlay() {
   if (!S.song) return;
+  exitChord(); // 和音練習中に再生を押したら、和音練習を終えて曲に戻る
   if (R) { pause(); return; }
   if (T.playing) { pause(); return; }
   try { play(startPos(), null, { count: true }); ensureStageVisible(); } catch (e) { say(e.message); }
@@ -1393,6 +1419,22 @@ function analyze() {
   S.level = r.rms;
   const midi = smooth(r.f > 0 ? 69 + 12 * Math.log2(r.f / 440) : null);
   const live = { midi, target: null, cents: null, ok: null };
+  if (S.song && CP.on) { // 和音練習：目標は伸ばしている和音の自分の音。曲の練習の線と点数には入れない
+    const tg = cpTarget();
+    live.target = tg;
+    if (midi != null && tg != null) {
+      if (S.octaveFree) live.midi = midi + 12 * Math.round((tg - midi) / 12);
+      live.cents = (live.midi - tg) * 100;
+      live.ok = Math.abs(live.cents) <= S.tol;
+    }
+    const t = A.ctx.currentTime - CP.t0;
+    const last = CP.trail[CP.trail.length - 1];
+    if (live.midi != null) CP.trail.push({ t, m: live.midi, ok: live.ok, tg: tg != null });
+    else if (last && last.m != null) CP.trail.push({ t, m: null });
+    while (CP.trail.length && CP.trail[0].t < t - 10) CP.trail.shift();
+    S.live = live;
+    return;
+  }
   if (S.song) {
     const t = T.playing ? voiceTime() : T.pos;
     const tg = targetAt(t, midi);
@@ -1427,6 +1469,7 @@ function pickMime() {
 const extFor = (mime) => (/mp4|aac|m4a/.test(mime) ? 'mp4' : /ogg/.test(mime) ? 'ogg' : 'webm');
 async function startRecording() {
   if (!S.song || R || recStarting) return;
+  exitChord();
   if (!window.MediaRecorder) { say('このブラウザでは録音できません。Chrome、Edge、Safari、Firefox の新しい版で試してください。'); return; }
   recStarting = true;
   try {
@@ -1592,6 +1635,7 @@ function setSong(song, label) {
   S.takeNo = 0;
   S.passes = [];
   S.loop = { on: false, a: 0, b: Math.min(1, barCount() - 1), t: null, mark: null };
+  if (CP.on) exitChord();
   S.marks = loadMarks();
   pick = null;
   lastMade = null;
@@ -1839,7 +1883,7 @@ function afterLoopChange(restart) {
 function syncLoopUI() {
   const on = looping();
   $('loopBtn').setAttribute('aria-pressed', String(on));
-  $('loopBox').hidden = !on;
+  $('loopBox').hidden = !on || CP.on; // 和音練習の間は隠して、音程バーを広く使う
   $('loopBox').classList.toggle('by-mark', on && !!S.loop.mark);
   if (on) {
     const last = barCount() - 1;
@@ -1979,7 +2023,7 @@ function setPick(p, msg) {
   kick();
 }
 function syncPickSheet() {
-  const on = !!(pick && S.song && !T.playing && !R);
+  const on = !!(pick && S.song && !T.playing && !R && !CP.on);
   $('pickSheet').hidden = !on;
   if (on) {
     const [lo, hi] = viewRange();
@@ -2005,6 +2049,180 @@ function undoMark() {
   setPick(pick);
   afterLoopChange(false);
   view.time = shown; view.follow = false; syncViewUI();
+}
+// ===== 和音練習（一人用）：選んだ時刻の和音を伸ばして鳴らし、自分の声を合わせる =====
+// 「お手本」＝全パート、「合わせる」＝自分以外のパート。練習の段階・ミュートより、このボタンの約束を優先する（音色・音量・移調は引き継ぐ）。
+// 目標の線はMIDIの平均律。横軸は練習を始めてからの時間（曲の時刻とは別）。
+const CP = { on: false, segs: [], idx: 0, kind: null, t0: 0, trail: [], saved: null, stopTimer: 0 };
+const CP_HOLD = 30; // 伸ばす長さの上限（秒）
+// 鳴っている音の組（パートと音高）が変わる時刻で区切る。同じパートの同じ音の歌い直しは区切りにしない。休符も区切り
+function chordSegments(parts) {
+  const ts = new Set();
+  parts.forEach((pt) => pt.notes.forEach((n) => { ts.add(n.s); ts.add(n.e); }));
+  const b = [...ts].sort((x, y) => x - y);
+  const keyAt = (t) => parts.map((pt) => {
+    for (let k = lowerBound(pt.notes, t + 1e-9, 's') - 1, c = 0; k >= 0 && c < 64; k--, c++) if (pt.notes[k].s <= t && t < pt.notes[k].e) return pt.notes[k].m;
+    return null;
+  });
+  const segs = [];
+  for (let i = 0; i + 1 < b.length; i++) {
+    const notes = keyAt((b[i] + b[i + 1]) / 2), key = notes.join(',');
+    const last = segs[segs.length - 1];
+    if (last && last.key === key && Math.abs(last.e - b[i]) < 1e-9) last.e = b[i + 1];
+    else segs.push({ s: b[i], e: b[i + 1], key, notes });
+  }
+  return segs.filter((sg) => sg.notes.some((m) => m != null));
+}
+const cpSeg = () => CP.segs[CP.idx];
+// 自分のパートの目標の音（休符なら null）
+function cpTarget() {
+  const sg = cpSeg();
+  return sg && sg.notes[S.sel] != null ? sg.notes[S.sel] + curTr() : null;
+}
+function enterChord(t) {
+  if (!S.song || R) return;
+  if (T.playing) pause();
+  CP.segs = chordSegments(S.song.parts);
+  if (!CP.segs.length) return;
+  let i = CP.segs.findIndex((sg) => sg.s <= t && t < sg.e);
+  if (i < 0) i = Math.max(0, lowerBound(CP.segs, t, 's') - 1);
+  CP.idx = i;
+  CP.saved = { follow: view.follow, time: view.time, pitchOffset: view.pitchOffset, pos: T.pos };
+  CP.on = true;
+  CP.kind = null;
+  CP.trail = [];
+  CP.t0 = A.ctx ? A.ctx.currentTime : 0;
+  pick = null;
+  syncPickSheet();
+  syncChordUI();
+  kick();
+}
+function exitChord() {
+  if (!CP.on) return;
+  cpSound(null);
+  CP.on = false;
+  const sv = CP.saved;
+  if (sv) { view.follow = sv.follow; view.time = sv.time; view.pitchOffset = sv.pitchOffset; T.pos = sv.pos; syncViewUI(); }
+  S.live = null;
+  syncChordUI();
+  kick();
+}
+// 伸ばす音を鳴らす／止める。kind：'demo'＝全パート、'sing'＝自分以外、null＝止める
+function cpSound(kind) {
+  clearTimeout(CP.stopTimer);
+  if (A.ctx) stopNotes();
+  CP.kind = kind;
+  if (kind) {
+    const sg = cpSeg(), now = A.ctx.currentTime + 0.03;
+    sg.notes.forEach((m, i) => {
+      if (m == null || (kind === 'sing' && i === S.sel)) return;
+      const st = S.pstate[i];
+      const gn = A.ctx.createGain();
+      gn.gain.value = st.vol;
+      gn.connect(A.guide);
+      playNote(m + curTr(), now, CP_HOLD, 100, gn, st.tone);
+      setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (CP_HOLD + 1) * 1000);
+    });
+    CP.stopTimer = setTimeout(() => { CP.kind = null; syncChordUI(); }, CP_HOLD * 1000);
+  }
+  syncChordUI();
+}
+async function cpPress(kind) {
+  if (!CP.on) return;
+  if (CP.kind === kind) { cpSound(null); return; } // もう一度押すと止める
+  try { ensureCtx(); } catch (e) { say(e.message); return; }
+  if (kind === 'sing' && !A.mic) await micOn();
+  if (!CP.on) return;
+  cpSound(kind);
+}
+function cpMove(d) {
+  if (!CP.on) return;
+  const i = clamp(CP.idx + d, 0, CP.segs.length - 1);
+  if (i === CP.idx) return;
+  CP.idx = i;
+  CP.trail = [];
+  if (CP.kind) cpSound(CP.kind); // 鳴らしている時は、新しい和音で鳴らし直す
+  syncChordUI();
+  kick();
+}
+function syncChordUI() {
+  $('cpBar').hidden = !CP.on;
+  if (S.song) syncLoopUI();
+  if (!CP.on) return;
+  const sg = cpSeg();
+  $('cpWhere').textContent = sg ? S.song.bars[barIndexAt(sg.s)].n + '小節目' : '';
+  $('cpPrev').disabled = CP.idx <= 0;
+  $('cpNext').disabled = CP.idx >= CP.segs.length - 1;
+  $('cpDemo').setAttribute('aria-pressed', String(CP.kind === 'demo'));
+  $('cpSing').setAttribute('aria-pressed', String(CP.kind === 'sing'));
+}
+// 和音練習の画面：目標の音を横線（パートの色、自分は太く）、自分の声を右から左へ流れる線で描く
+function drawChord(W, H) {
+  const gut = GUT, top = 24;
+  const bot = Math.max(top + 30, H - $('cpBar').offsetHeight - 14); // 下の操作欄に線が隠れないよう、その上までに描く
+  const sg = cpSeg(), tr = curTr();
+  const ms = sg.notes.filter((m) => m != null).map((m) => m + tr);
+  let lo = Math.min(...ms) - 4, hi = Math.max(...ms) + 4;
+  if (hi - lo < 12) { const c = (hi + lo) / 2; lo = Math.floor(c - 6); hi = lo + 12; }
+  const rowH = (bot - top) / (hi - lo + 1);
+  const Y = (m) => top + (hi + 0.5 - m) * rowH;
+  const now = A.ctx ? A.ctx.currentTime - CP.t0 : 0;
+  const px = (W - gut - 24) / 8; // 8秒分を見せる
+  const X = (t) => W - 24 - (now - t) * px;
+  g.save();
+  g.beginPath(); g.rect(gut, 0, W - gut, H); g.clip();
+  for (let m = lo; m <= hi; m++) {
+    const y = top + (hi - m) * rowH;
+    if (isBlack(m)) { g.fillStyle = C.rowAlt; g.fillRect(gut, y, W - gut, rowH); }
+    if (pc(m) === 0) { g.fillStyle = C.line; g.fillRect(gut, Math.round(y + rowH) - 1, W - gut, 1); }
+  }
+  sg.notes.forEach((m, i) => {
+    if (m == null || i === S.sel) return;
+    g.globalAlpha = 0.55;
+    g.fillStyle = S.pstate[i].color;
+    g.fillRect(gut, Y(m + tr) - 2, W - gut, 4);
+  });
+  g.globalAlpha = 1;
+  const own = sg.notes[S.sel];
+  if (own != null) {
+    g.fillStyle = S.pstate[S.sel].color;
+    g.fillRect(gut, Y(own + tr) - 4, W - gut, 8);
+  }
+  // 自分の声（練習の線と同じ描き方）
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  let prev = null;
+  for (const pt of CP.trail) {
+    if (pt.t < now - 9) { prev = null; continue; }
+    if (pt.m == null) { prev = null; continue; }
+    const k = pt.tg ? (pt.ok ? 'ok' : 'off') : 'free';
+    if (prev && pt.t - prev.t < 0.12) {
+      g.beginPath();
+      if (k === 'ok') { g.strokeStyle = C.good; g.lineWidth = 4.5; } else if (k === 'off') { g.strokeStyle = C.off; g.lineWidth = 2.4; } else { g.strokeStyle = C.muted; g.lineWidth = 2; }
+      g.moveTo(X(prev.t), clamp(Y(prev.m), top + 4, bot - 4));
+      g.lineTo(X(pt.t), clamp(Y(pt.m), top + 4, bot - 4));
+      g.stroke();
+    }
+    prev = pt;
+  }
+  const L = S.live;
+  if (L && L.midi != null) marker(W - 24, clamp(Y(L.midi), top + 10, bot - 10), L.ok == null ? 'free' : L.ok ? 'ok' : 'off');
+  g.restore();
+  // 左の音名（目標の音を強調）
+  g.fillStyle = C.surface;
+  g.fillRect(0, 0, gut, H);
+  g.fillStyle = C.line;
+  g.fillRect(gut - 1, 0, 1, H);
+  const fs = Math.max(9, Math.min(12, rowH - 1));
+  g.textAlign = 'right';
+  g.textBaseline = 'middle';
+  for (let m = lo; m <= hi; m++) {
+    const show = rowH >= 12 ? true : rowH >= 7 ? !isBlack(m) : pc(m) === 0;
+    const isT = own != null && own + tr === m;
+    if (!show && !isT) continue;
+    g.font = (isT ? '700 ' : '500 ') + fs + 'px ' + FONT;
+    g.fillStyle = isT ? S.pstate[S.sel].color : pc(m) === 0 ? C.ink : C.muted;
+    g.fillText(noteName(m), gut - 8, Y(m));
+  }
 }
 // 「ここから」「ここまで」：選んでいるしおり（なければ新しいしおり）の端を、選んだ音符に合わせる
 function setMarkEdge(which) {
@@ -2202,6 +2420,8 @@ function updateReadouts() {
     }
   } else if (S.live) {
     tgt = S.live.target; you = S.live.midi; cents = S.live.cents; ok = S.live.ok;
+  } else if (S.song && CP.on) {
+    tgt = cpTarget();
   } else if (S.song) {
     tgt = targetAt(viewTime(), null);
   }
@@ -2407,6 +2627,7 @@ function draw() {
   g.fillStyle = C.roll;
   g.fillRect(0, 0, W, H);
   if (!S.song) { drawPreview(W, H); return; }
+  if (CP.on && cpSeg()) { drawChord(W, H); return; }
   const gut = GUT, top = 24, bot = H - 6;
   const [lo, hi] = viewRange();
   const rowH = (bot - top) / (hi - lo + 1);
@@ -2639,7 +2860,7 @@ function frame(ts) {
   raf = 0;
   if (A.mic && T.mode !== 'review') analyze();
   draw();
-  const keep = T.playing || !!A.mic || !!drag;
+  const keep = T.playing || !!A.mic || !!drag || (CP.on && !!CP.kind);
   if (!keep || !ts || ts - lastRead > 70) { lastRead = ts || 0; updateReadouts(); }
   if (keep) raf = requestAnimationFrame(frame);
 }
@@ -2754,7 +2975,7 @@ function clearPress() {
   press = null;
 }
 cv.addEventListener('pointerdown', (e) => {
-  if (!S.song) return;
+  if (!S.song || CP.on) return; // 和音練習の画面では、表示の移動や音符選びはしない
   if (e.isPrimary === false) { clearPress(); return; } // 2本目の指：長押し・タップは取り消す（ピンチはブラウザに任せる）
   if (e.button !== 0) return;
   clearPress();
@@ -2801,6 +3022,12 @@ $('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t, 1.5)
 $('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
 $('markToBtn').addEventListener('click', () => setMarkEdge('b'));
 $('undoMarkBtn').addEventListener('click', undoMark);
+$('cpBtn').addEventListener('click', () => { if (pick) enterChord(pick.t); });
+$('cpPrev').addEventListener('click', () => cpMove(-1));
+$('cpNext').addEventListener('click', () => cpMove(1));
+$('cpDemo').addEventListener('click', () => cpPress('demo'));
+$('cpSing').addEventListener('click', () => cpPress('sing'));
+$('cpBack').addEventListener('click', exitChord);
 $('pickClose').addEventListener('click', () => setPick(null));
 $('followBtn').addEventListener('click', resumeFollow);
 $('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; syncViewUI(); kick(); });
@@ -2842,6 +3069,7 @@ document.addEventListener('drop', (e) => {
 });
 // スペースキーで再生／一時停止
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && CP.on) { exitChord(); return; }
   if (e.key === 'Escape' && pick) { setPick(null); return; }
   if (e.code !== 'Space' && e.key !== ' ') return;
   const tag = (e.target && e.target.tagName) || '';
