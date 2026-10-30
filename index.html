@@ -181,7 +181,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .cpbar .cpwhere { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: center; }
 .cpbar .cpback { margin-left: auto; }
 @media (max-width: 700px) {
-  .cpbar { left: 60px; right: 4px; padding: 4px; gap: 4px; flex-wrap: nowrap; }
+  .cpbar { left: 4px; right: 4px; padding: 4px; gap: 4px; flex-wrap: wrap; } /* 狭い画面では音名欄の下も使い、戻るを切らさない */
   .cpbar .btn { padding: 0.15em 0.55em; font-size: 0.8rem; min-height: 32px; }
   .cpbar .iconbtn { width: 30px; height: 30px; flex: none; }
   .cpbar .cpwhere { display: none; } /* スマホでは1行に収めるため、小節の表示を省く */
@@ -986,7 +986,11 @@ function ensureCtx() {
     const ctx = new AC();
     A.ctx = ctx;
     // 電話・ほかのアプリの音などで止められたら、一時停止して位置を保つ
-    ctx.addEventListener('statechange', () => { if (ctx.state !== 'running' && T.playing) { pause(); say('音が止められたので一時停止しました。もう一度「再生」を押してください。', true); } });
+    ctx.addEventListener('statechange', () => {
+      if (ctx.state !== 'running' && (T.playing || (CP.on && CP.kind))) {
+        stopForInterruption('音が止められたので一時停止しました。使いたいボタンをもう一度押してください。');
+      }
+    });
     A.guide = ctx.createGain();
     A.guide.gain.value = S.guideVol;
     // パートの音量を150%まで上げて和音が重なっても音が割れないよう、出口で大きすぎる音だけを抑える
@@ -2053,7 +2057,7 @@ function undoMark() {
 // ===== 和音練習（一人用）：選んだ時刻の和音を伸ばして鳴らし、自分の声を合わせる =====
 // 「お手本」＝全パート、「合わせる」＝自分以外のパート。練習の段階・ミュートより、このボタンの約束を優先する（音色・音量・移調は引き継ぐ）。
 // 目標の線はMIDIの平均律。横軸は練習を始めてからの時間（曲の時刻とは別）。
-const CP = { on: false, segs: [], idx: 0, kind: null, t0: 0, trail: [], saved: null, stopTimer: 0 };
+const CP = { on: false, segs: [], idx: 0, kind: null, pending: null, request: 0, t0: 0, trail: [], saved: null, stopTimer: 0 };
 const CP_HOLD = 30; // 伸ばす長さの上限（秒）
 // 鳴っている音の組（パートと音高）が変わる時刻で区切る。同じパートの同じ音の歌い直しは区切りにしない。休符も区切り
 function chordSegments(parts) {
@@ -2089,6 +2093,8 @@ function enterChord(t) {
   CP.idx = i;
   CP.saved = { follow: view.follow, time: view.time, pitchOffset: view.pitchOffset, pos: T.pos };
   CP.on = true;
+  CP.request++;
+  CP.pending = null;
   CP.kind = null;
   CP.trail = [];
   CP.t0 = A.ctx ? A.ctx.currentTime : 0;
@@ -2109,6 +2115,8 @@ function exitChord() {
 }
 // 伸ばす音を鳴らす／止める。kind：'demo'＝全パート、'sing'＝自分以外、null＝止める
 function cpSound(kind) {
+  CP.request++; // 戻る・中断・別の操作の後に、古いマイク許可待ちから音を始めない
+  CP.pending = null;
   clearTimeout(CP.stopTimer);
   if (A.ctx) stopNotes();
   CP.kind = kind;
@@ -2127,18 +2135,54 @@ function cpSound(kind) {
   }
   syncChordUI();
 }
+function stopForInterruption(message) {
+  const active = T.playing || (CP.on && (CP.kind || CP.pending)) || A.active.size > 0;
+  if (T.playing) pause();
+  if (CP.on) { cpSound(null); S.live = null; }
+  if (A.ctx) stopNotes(); // 短い和音試聴・出だしの音も止める
+  if (active) say(message, true);
+  kick();
+}
 async function cpPress(kind) {
   if (!CP.on) return;
   if (CP.kind === kind) { cpSound(null); return; } // もう一度押すと止める
-  try { ensureCtx(); } catch (e) { say(e.message); return; }
-  if (kind === 'sing' && !A.mic) await micOn();
-  if (!CP.on) return;
-  cpSound(kind);
+  if (CP.pending === kind) return; // 許可待ち中の連打でマイクを重複取得しない
+  cpSound(null);
+  const request = CP.request;
+  CP.pending = kind;
+  syncChordUI();
+  const current = () => CP.on && CP.request === request && document.visibilityState !== 'hidden';
+  try {
+    ensureCtx();
+    if (kind === 'sing' && !A.mic) await micOn();
+    if (!current() || (kind === 'sing' && !A.mic)) return;
+    // マイク取得で音声の状態が変わる端末もあるため、取得後に再開を待つ。
+    const ctx = A.ctx;
+    if (ctx.state !== 'running') {
+      let timer;
+      try {
+        await Promise.race([
+          ctx.resume(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('resume timeout')), 5000); }),
+        ]);
+      } finally { clearTimeout(timer); }
+    }
+    if (!current()) return;
+    if (ctx.state !== 'running') throw new Error('音を再開できませんでした。もう一度押してください。');
+    cpSound(kind);
+    kick();
+  } catch (e) {
+    if (current()) say('音を始められませんでした。もう一度押してください。', true);
+  } finally {
+    if (CP.request === request) { CP.pending = null; syncChordUI(); }
+  }
 }
 function cpMove(d) {
   if (!CP.on) return;
   const i = clamp(CP.idx + d, 0, CP.segs.length - 1);
   if (i === CP.idx) return;
+  CP.request++;
+  CP.pending = null;
   CP.idx = i;
   CP.trail = [];
   if (CP.kind) cpSound(CP.kind); // 鳴らしている時は、新しい和音で鳴らし直す
@@ -2155,6 +2199,8 @@ function syncChordUI() {
   $('cpNext').disabled = CP.idx >= CP.segs.length - 1;
   $('cpDemo').setAttribute('aria-pressed', String(CP.kind === 'demo'));
   $('cpSing').setAttribute('aria-pressed', String(CP.kind === 'sing'));
+  $('cpDemo').setAttribute('aria-busy', String(CP.pending === 'demo'));
+  $('cpSing').setAttribute('aria-busy', String(CP.pending === 'sing'));
 }
 // 和音練習の画面：目標の音を横線（パートの色、自分は太く）、自分の声を右から左へ流れる線で描く
 function drawChord(W, H) {
@@ -3117,13 +3163,10 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('beforeunload', () => { if (A.mic) A.mic.stream.getTracks().forEach((t) => t.stop()); });
 // ほかのアプリに切り替えた・画面を消した時は一時停止する（裏ではガイドの音を正しく鳴らし続けられないため）
 const onHidden = () => {
-  if (document.visibilityState === 'hidden' && T.playing) {
-    pause();
-    say('ほかの画面に切り替わったので一時停止しました。', true);
-  }
+  if (document.visibilityState === 'hidden') stopForInterruption('ほかの画面に切り替わったので一時停止しました。');
 };
 document.addEventListener('visibilitychange', onHidden);
-window.addEventListener('pagehide', onHidden);
+window.addEventListener('pagehide', () => stopForInterruption('ほかの画面に切り替わったので一時停止しました。'));
 
 // ===== はじめの準備 =====
 (() => {
@@ -3181,3 +3224,4 @@ syncMicUI();
 </script>
 </body>
 </html>
+
