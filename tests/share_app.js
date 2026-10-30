@@ -35,12 +35,13 @@ let cleanup = async () => {};
   });
   const apiPort = await listen(apiServer);
   const API = 'http://localhost:' + apiPort;
-  // ---- アプリ。SHARE_API を偽のAPIに向けた版と、空のまま（今の公開版と同じ）の版 ----
+  // ---- アプリ。SHARE_API を偽のAPIに向けた版と、空にした（設定していない）版。本番のURLには向けない ----
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  if (!html.includes("const SHARE_API = '';")) throw new Error('SHARE_API の行が見つかりません');
+  const API_LINE = /const SHARE_API = '[^']*';/;
+  if (!API_LINE.test(html)) throw new Error('SHARE_API の行が見つかりません');
   const expose = "Object.assign(window, { S, T }); })();</script></body>";
-  const withApi = html.replace("const SHARE_API = '';", `const SHARE_API = '${API}';`).replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, expose);
-  const noApi = html.replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, expose);
+  const withApi = html.replace(API_LINE, `const SHARE_API = '${API}';`).replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, expose);
+  const noApi = html.replace(API_LINE, "const SHARE_API = '';").replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, expose);
   const appServer = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(req.url.startsWith('/off') ? noApi : withApi); });
   const appPort = await listen(appServer);
   appOrigin = 'http://localhost:' + appPort;
