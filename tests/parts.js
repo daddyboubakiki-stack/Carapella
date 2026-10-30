@@ -4,7 +4,7 @@ const fs = require('fs'), http = require('http'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.join(__dirname, '..');
 // アプリの中の状態をテストから読めるよう、配信する時だけ window に出す
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, "Object.assign(window, { S, A }); })();</script></body>");
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, "Object.assign(window, { S, A, addMark }); })();</script></body>");
 const server = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end(html); }).listen(0);
 const URL = 'http://localhost:' + server.address().port + '/';
 // マイクの代わりにガイド音を流し込む仕掛け（e2e2.js と同じもの）
@@ -44,9 +44,7 @@ let fails = 0; const check = (l, ok, d = '') => { if (!ok) fails++; console.log(
   st = await p.evaluate(() => S.pstate.map((x) => x.color));
   check('3パートの曲は 赤・橙・青', JSON.stringify(st) === JSON.stringify(['#E5484D', '#F08C2E', '#3B82F6']), JSON.stringify(st));
   // パートを切り替えても、選んでいるしおりの表示が消えない
-  await p.click('#loopBtn'); await p.click('#markBtn');
-  const box = await p.locator('.roll canvas').boundingBox();
-  await p.mouse.move(box.x + box.width * 0.35, box.y + 80); await p.mouse.down(); await p.mouse.move(box.x + box.width * 0.6, box.y + 80, { steps: 6 }); await p.mouse.up();
+  await p.evaluate(() => addMark(1, 3));
   await p.locator('#chips .chip').nth(1).click();
   st = await p.evaluate(() => document.querySelector('#marks .chip').getAttribute('aria-checked'));
   check('パートを切り替えても、選んでいるしおりは選ばれたまま', st === 'true', st);

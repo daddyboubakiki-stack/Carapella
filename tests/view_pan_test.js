@@ -24,7 +24,7 @@ vm.runInContext('function viewTime() { return clock; }', ctx);
 vm.runInContext(section('function displayTime()', '\nlet C ='), ctx);
 vm.runInContext(section('function baseViewRange()', '\nfunction marker('), ctx);
 vm.runInContext(section('function pixelsPerSecond()', '// なぞった位置'), ctx);
-vm.runInContext(section('function beginPan(', '// しおりモードの座標変換'), ctx);
+vm.runInContext(section('function beginPan(', '// 指の動きで区別する'), ctx);
 const run = code => vm.runInContext(code, ctx);
 const transport = JSON.stringify(ctx.T);
 

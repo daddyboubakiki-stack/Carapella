@@ -135,7 +135,7 @@ async function sing(page, { from = 0, secs = 9, part = 0, audible = [true, true,
     const v3 = /(\d+)%/.exec(m3);
     check('③自分なし：自分のガイドが鳴らないので、歌わなければ点は低い', !v3 || Number(v3[1]) < 20, m3 || '（判定対象なし）');
     const m4 = await sing(page, { audible: [true, true, true], mode: 4, secs: 4 });
-    check('④ひとりで：ガイドが鳴らないので、マイクに何も入らず点は出ない', m4 === '', m4 || '（表示なし）');
+    check('④ひとりで：ガイドが鳴らないので、マイクに何も入らず点は出ない', !/\d+%/.test(m4), m4 || '（表示なし）');
     // ③④のカウント中に自分のパートの最初の音が鳴るか
     await setCheck(page, 'countIn', true);
     await setMode(page, 3);
@@ -344,13 +344,13 @@ async function sing(page, { from = 0, secs = 9, part = 0, audible = [true, true,
     check('Android相当：通常のブラウザでは案内を出さない', await p3.$eval('#inAppNote', (e) => e.hidden));
     await p3.setInputFiles('#fileIn', path.join(ROOT, 'tests', 'midi', 'satb_sjis.mid'));
     await sleep(300);
-    await p3.tap('.chip:nth-child(4)');
+    await p3.selectOption('#partSelect', { index: 3 }); // スマホ幅ではパートを一覧（select）から選ぶ
     await p3.tap('#micBtn');
     await sleep(300);
     await p3.tap('#loopBtn');
     await p3.tap('#playBtn');
     await sleep(3000);
-    const st3 = await p3.evaluate(() => ({ part: document.querySelector('.chip[aria-checked="true"]').textContent, playing: document.getElementById('playLbl').textContent, you: document.getElementById('hYou').textContent }));
+    const st3 = await p3.evaluate(() => ({ part: document.getElementById('partSelect').selectedOptions[0].textContent, playing: document.getElementById('playLbl').textContent, you: document.getElementById('hYou').textContent }));
     check('Android相当：タップでパート選択・マイク・区間・再生ができる', st3.part.startsWith('ベース') && st3.playing === '一時停止' && st3.you !== 'オフ', JSON.stringify(st3));
     await p3.screenshot({ path: OUT + '/v2_android_satb.png' });
     check('Android相当：エラーなし', e3.length === 0, e3.join(';'));

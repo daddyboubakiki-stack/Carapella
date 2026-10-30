@@ -151,7 +151,26 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
   position: relative; height: clamp(260px, 52vh, 560px); border-radius: 18px; overflow: hidden;
   border: 1.5px solid var(--line); background: var(--roll); touch-action: pinch-zoom;
 }
-.roll canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.roll canvas { display: block; width: 100%; height: 100%; cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* 音符をタップ・長押しした時の小さなシート（音程バーに重ねて出し、グラフの高さを変えない） */
+.picksheet {
+  position: absolute; z-index: 2; left: 62px; right: 6px; bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 5px 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.picksheet[hidden] { display: none; }
+.picksheet.at-top { top: 6px; bottom: auto; } /* 選んだ音符が下の方にある時は、上に出して音符を隠さない */
+.picksheet > * { flex: none; }
+.picksheet .btn { min-height: 34px; padding: 0.2em 0.8em; font-size: 0.85rem; }
+.picksheet .iconbtn { width: 30px; height: 30px; margin-left: auto; }
+@media (max-width: 700px) {
+  .picksheet { left: 60px; right: 4px; padding: 4px; gap: 4px; }
+  .picksheet .btn { padding: 0.15em 0.6em; font-size: 0.8rem; min-height: 32px; }
+  .picksheet .pickmsg { flex-basis: 100%; } /* お知らせ（5秒）は1行目に。ボタンは2行目 */
+}
+.picksheet .pickmsg { margin: 0; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.picksheet .pickmsg[hidden] { display: none; }
+.picksheet .pickmsg .btn { min-height: 28px; font-size: 0.78rem; padding: 0.1em 0.7em; }
+.markhint { font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 .roll.drop { outline: 3px dashed var(--bar); outline-offset: -10px; }
 .empty {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -184,6 +203,8 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .msg.info { color: var(--ink); }
 .loopbox { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 0.88rem; }
 .loopbox[hidden] { display: none; }
+/* しおりを選んでいる時は、小節の＋−を隠して1行にする（スマホで音程バーを狭くしすぎないため）。もう一度チップを押すと小節の区間に戻る */
+.loopbox.by-mark > :not(.markrow):not(.passes) { display: none; }
 .stepper { display: inline-flex; align-items: center; gap: 4px; }
 .stepper output { min-width: 2.2em; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stepper .iconbtn { width: 32px; height: 32px; }
@@ -195,7 +216,6 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .mark { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .mark .chip { min-height: 34px; padding: 0.2em 0.75em; font-size: 0.85rem; }
 .mark .iconbtn { width: 28px; height: 28px; }
-.btn.small.marking { background: var(--note-bg); border-color: var(--loop-edge); }
 .seektrack { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
 .seektrack input { flex: 1; min-width: 0; }
 /* 再生バーの下に、しおりの範囲を細い帯で出す（つまみの半径ぶん内側から） */
@@ -412,6 +432,13 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <canvas id="roll" tabindex="0" aria-label="音程バーと、あなたの声の高さの線" aria-describedby="plotHelpText"></canvas>
       <span id="rangeNotice" class="range-notice" hidden></span>
       <span id="voiceNotice" class="voice-notice" hidden></span>
+      <div class="picksheet" id="pickSheet" role="group" aria-label="選んだ音" hidden>
+        <p class="pickmsg" id="pickMsg" hidden><span id="pickMsgText"></span><button class="btn small" id="undoMarkBtn" type="button">取り消す</button></p>
+        <button class="btn small" id="chordBtn" type="button">和音を鳴らす</button>
+        <button class="btn small" id="markFromBtn" type="button" title="選んだ音から、しおりを始めます">ここから</button>
+        <button class="btn small" id="markToBtn" type="button" title="選んだ音まで、しおりを延ばします">ここまで</button>
+        <button class="iconbtn" id="pickClose" type="button" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg></button>
+      </div>
       <div class="empty" id="empty">
         <p class="empty-steps">①デモを開く → ②パートを選ぶ → ③再生</p>
         <div class="actions">
@@ -427,7 +454,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。しおりは「しおりを作る」を押してから指定します。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らしたり、しおりの始まり・終わりを決めたりできます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -468,7 +495,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span>小節</span>
       <span class="passes" id="passes"></span>
       <div class="markrow">
-        <button class="btn small" id="markBtn" type="button" aria-pressed="false" title="音程バーの上をなぞって、練習したい所をしおりにします">＋ しおりを作る</button>
+        <span class="markhint" id="markHint">音符を長押しでしおり</span>
         <div class="marks" id="marks" role="radiogroup" aria-label="しおり"></div>
       </div>
     </div>
@@ -1155,6 +1182,8 @@ function play(p, take, opts) {
   stopNotes();
   clearInterval(T.timer);
   stopReviewSrc();
+  pick = null; // 再生を始めたら、選んだ音符とシートは閉じる
+  lastMade = null;
   T.mode = take ? 'review' : 'live';
   T.reviewTake = take || null;
   T.rate = take ? take.rate : S.rate;
@@ -1564,7 +1593,8 @@ function setSong(song, label) {
   S.passes = [];
   S.loop = { on: false, a: 0, b: Math.min(1, barCount() - 1), t: null, mark: null };
   S.marks = loadMarks();
-  marking = null;
+  pick = null;
+  lastMade = null;
   S.events = [];
   song.parts.forEach((pt, i) => pt.notes.forEach((n) => S.events.push({ s: n.s, e: n.e, m: n.m, v: n.v, part: i })));
   S.events.sort((a, b) => a.s - b.s);
@@ -1810,6 +1840,7 @@ function syncLoopUI() {
   const on = looping();
   $('loopBtn').setAttribute('aria-pressed', String(on));
   $('loopBox').hidden = !on;
+  $('loopBox').classList.toggle('by-mark', on && !!S.loop.mark);
   if (on) {
     const last = barCount() - 1;
     $('loopAOut').textContent = S.song.bars[S.loop.a].n;
@@ -1819,16 +1850,14 @@ function syncLoopUI() {
     $('loopB-').disabled = !!R || S.loop.b <= 0;
     $('loopB+').disabled = !!R || S.loop.b >= last;
   }
-  $('markBtn').disabled = !!R;
-  $('markBtn').setAttribute('aria-pressed', String(!!marking));
-  $('markBtn').classList.toggle('marking', !!marking);
-  $('markBtn').textContent = marking ? 'やめる' : '＋ しおりを作る';
+  $('markHint').hidden = !!(S.song && S.marks.length);
+  syncPickSheet();
   renderMarks();
   renderPasses();
 }
 // ===== しおり：ピアノロールで始まりと終わりを指定した区間（曲ごとに、この端末に記憶） =====
 const MARK_KEY = 'acapella-renshucho:marks:v1';
-let marking = null; // しおりを作っている途中：{ a: 始まりの時刻 or null, sel: [始まり, 終わり] or null }
+const MARK_MIN = 0.2; // しおりの最短の長さ（秒）
 const songKey = () => S.label + '|' + S.song.duration.toFixed(2) + '|' + S.song.parts.length;
 function loadMarks() {
   try {
@@ -1844,27 +1873,38 @@ function saveMarks() {
     localStorage.setItem(MARK_KEY, JSON.stringify(all));
   } catch (e) { /* 記憶できなくても、開いている間は使える */ }
 }
-function addMark(a, b) {
+// 範囲を曲の中に収め、最短の長さに満たなければ後ろへ延ばす（曲の終わりでは始まりを前へ）
+function fitRange(a, b) {
   if (b < a) [a, b] = [b, a];
-  a = clamp(a, 0, S.song.duration); b = clamp(b, 0, S.song.duration);
-  if (b - a < 0.2) { say('短すぎるので、もう少し長くなぞってください。', true); return; }
+  const D = S.song.duration;
+  a = clamp(a, 0, D); b = clamp(b, 0, D);
+  if (b - a < MARK_MIN) { b = Math.min(D, a + MARK_MIN); a = Math.max(0, b - MARK_MIN); }
+  return [+a.toFixed(3), +b.toFixed(3)];
+}
+function addMark(a, b, keepView) {
+  [a, b] = fitRange(a, b);
   const n = S.marks.reduce((mx, m) => Math.max(mx, m.n || 0), 0) + 1;
-  const mk = { id: Date.now().toString(36) + n, n, name: 'しおり' + n, a: +a.toFixed(3), b: +b.toFixed(3) };
+  const mk = { id: Date.now().toString(36) + n, n, name: 'しおり' + n, a, b };
   S.marks.push(mk);
   S.marks.sort((x, y) => x.a - y.a);
   saveMarks();
-  marking = null;
-  say('');
-  useMark(mk.id);
+  applyMark(mk, keepView);
+  return mk;
+}
+// 区間リピートを、そのしおりの範囲に合わせる。keepView：音程バーの上で作った・直した時は、表示を動かさない（指の下の音符が逃げないように）
+function applyMark(mk, keepView) {
+  const shown = displayTime();
+  S.loop = { on: true, a: barIndexAt(mk.a), b: barIndexAt(Math.max(mk.a, mk.b - 1e-3)), t: [mk.a, mk.b], mark: mk.id };
+  S.passes = [];
+  afterLoopChange(true);
+  if (keepView) { view.time = shown; view.follow = false; syncViewUI(); kick(); }
 }
 function useMark(id) {
   if (!S.song || R) return;
   const mk = S.marks.find((m) => m.id === id);
   if (!mk) return;
-  if (looping() && S.loop.mark === id) { S.loop.t = null; S.loop.mark = null; } // もう一度押すと小節の区間に戻る
-  else S.loop = { on: true, a: barIndexAt(mk.a), b: barIndexAt(Math.max(mk.a, mk.b - 1e-3)), t: [mk.a, mk.b], mark: id };
-  S.passes = [];
-  afterLoopChange(true);
+  if (looping() && S.loop.mark === id) { S.loop.t = null; S.loop.mark = null; S.passes = []; afterLoopChange(true); return; } // もう一度押すと小節の区間に戻る
+  applyMark(mk);
 }
 function deleteMark(id) {
   if (R) return;
@@ -1873,21 +1913,113 @@ function deleteMark(id) {
   if (S.loop.mark === id) { S.loop.t = null; S.loop.mark = null; S.passes = []; afterLoopChange(true); }
   else syncLoopUI();
 }
-function toggleMarking() {
-  if (!S.song || R) return;
-  if (marking) { marking = null; say(''); }
-  else {
-    const shown = displayTime();
-    if (T.playing) pause();
-    view.time = shown;
-    view.follow = false;
-    syncViewUI();
-    marking = { a: null, sel: null };
-    say('');
-    ensureStageVisible();
+// ===== 音符を選ぶ：タップで選んでシートを出す／長押しして離すとしおり =====
+// pick：選んだ音符と、押した時刻 t（和音はこの時刻で決める。保存はしない）
+let pick = null;
+let pickMsgTimer = 0;
+let lastMade = null; // 直前に長押しで作ったしおり（取り消し用）：{ id, loop }
+const LONG_MS = 450, MOVE_PX = 8;
+// 画面の点 (x, y) にある音符。自分のパートを優先し、見えているほかのパートの音符も選べる
+function noteAt(x, y) {
+  if (!S.song || x < GUT) return null;
+  const top = 24, bot = view.h - 6;
+  const [lo, hi] = viewRange();
+  const rowH = (bot - top) / (hi - lo + 1);
+  const m = hi + 0.5 - (y - top) / rowH;
+  const t = timeAtX(x);
+  const tolT = 8 / pixelsPerSecond(), tolM = Math.max(0.6, 14 / rowH);
+  const tr = curTr();
+  let best = null, bd = Infinity;
+  S.song.parts.forEach((pt, i) => {
+    if (i !== S.sel && !S.showOthers) return;
+    for (let k = lowerBound(pt.notes, t - 30, 's'); k < pt.notes.length && pt.notes[k].s <= t + tolT; k++) {
+      const n = pt.notes[k];
+      if (n.e < t - tolT) continue;
+      const d = Math.abs(n.m + tr - m);
+      if (d > tolM) continue;
+      const score = d + (i === S.sel ? 0 : 0.5);
+      if (score < bd) { bd = score; best = { part: i, note: n, t: clamp(t, n.s, Math.max(n.s, n.e - 1e-3)) }; }
+    }
+  });
+  return best;
+}
+// 時刻 t に鳴っている音（パートごと。休んでいるパートは入れない）
+function chordAt(t) {
+  const out = [];
+  S.song.parts.forEach((pt, i) => {
+    for (let k = lowerBound(pt.notes, t + 1e-6, 's') - 1, c = 0; k >= 0 && c < 64; k--, c++) {
+      const n = pt.notes[k];
+      if (n.s <= t && t < n.e) { out.push({ part: i, m: n.m }); break; }
+    }
+  });
+  return out;
+}
+// 和音を鳴らす：各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）
+function playChord(t, dur) {
+  try { ensureCtx(); } catch (e) { say(e.message); return; }
+  const now = A.ctx.currentTime + 0.02;
+  for (const c of chordAt(t)) {
+    const st = S.pstate[c.part];
+    const gn = A.ctx.createGain();
+    gn.gain.value = st.vol;
+    gn.connect(A.guide);
+    playNote(c.m + curTr(), now, dur, 100, gn, st.tone);
+    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (dur + 1) * 1000);
   }
-  syncLoopUI();
+}
+function setPick(p, msg) {
+  pick = p;
+  clearTimeout(pickMsgTimer);
+  $('pickMsg').hidden = !msg;
+  if (msg) {
+    $('pickMsgText').textContent = msg;
+    pickMsgTimer = setTimeout(() => { $('pickMsg').hidden = true; lastMade = null; }, 5000);
+  } else lastMade = null;
+  syncPickSheet();
   kick();
+}
+function syncPickSheet() {
+  const on = !!(pick && S.song && !T.playing && !R);
+  $('pickSheet').hidden = !on;
+  if (on) {
+    const [lo, hi] = viewRange();
+    $('pickSheet').classList.toggle('at-top', pick.note.m + curTr() < (lo + hi) / 2);
+  }
+}
+// 長押しして離した：その音符の長さでしおりを作る（0.2秒未満は区間用に後ろへ延ばす）
+function markFromPick(p) {
+  const prev = { ...S.loop, t: S.loop.t && S.loop.t.slice() };
+  const mk = addMark(p.note.s, p.note.e, true);
+  setPick(p, mk.name + 'を作りました');
+  lastMade = { id: mk.id, loop: prev };
+}
+function undoMark() {
+  if (!lastMade || R) return;
+  const { id, loop } = lastMade;
+  lastMade = null;
+  S.marks = S.marks.filter((m) => m.id !== id);
+  saveMarks();
+  const shown = displayTime();
+  S.loop = loop;
+  S.passes = [];
+  setPick(pick);
+  afterLoopChange(false);
+  view.time = shown; view.follow = false; syncViewUI();
+}
+// 「ここから」「ここまで」：選んでいるしおり（なければ新しいしおり）の端を、選んだ音符に合わせる
+function setMarkEdge(which) {
+  if (!pick || R) return;
+  const n = pick.note;
+  const mk = looping() && S.loop.mark && S.marks.find((m) => m.id === S.loop.mark);
+  if (!mk) { addMark(n.s, n.e, true); setPick(pick); return; }
+  let a = mk.a, b = mk.b;
+  if (which === 'a') { a = n.s; if (a >= b) b = n.e; }
+  else { b = n.e; if (b <= a) a = n.s; }
+  [mk.a, mk.b] = fitRange(a, b);
+  S.marks.sort((x, y) => x.a - y.a);
+  saveMarks();
+  applyMark(mk, true);
+  setPick(pick);
 }
 function renderMarks() {
   const box = $('marks');
@@ -2023,7 +2155,7 @@ function syncTransportUI() {
   $('keyUp').disabled = !!R || S.transpose >= 12;
   // 録音中は、パート・練習の段階・区間を変えられないようにする（録音の記録と食い違わないように）
   $('loopBtn').disabled = !has || !!R;
-  if (R && marking) { marking = null; kick(); } // 録音が始まったら、しおり作りはやめる
+  syncPickSheet();
   document.querySelectorAll('.chip').forEach((el) => { el.disabled = !!R; });
   $('partSelect').disabled = !has || !!R;
   document.querySelectorAll('input[name="mode"]').forEach((el) => { el.disabled = !!R; });
@@ -2143,7 +2275,7 @@ function readColors() {
   C = {
     roll: v('--roll'), rowAlt: v('--row-alt'), line: v('--line'), ink: v('--ink'), muted: v('--muted'),
     bar: v('--bar'), barNow: v('--bar-now'), barOther: v('--bar-other'), good: v('--good'), off: v('--off'), surface: v('--surface'),
-    loop: v('--loop'), loopEdge: v('--loop-edge'),
+    loop: v('--loop'), loopEdge: v('--loop-edge'), focus: v('--focus'),
   };
   kick();
 }
@@ -2323,7 +2455,7 @@ function draw() {
     g.fillRect(Math.round(x0) - 1, 0, 2, H);
     g.fillRect(Math.round(x1) - 1, 0, 2, H);
   }
-  // しおり（上の端に細い帯）と、作っている途中の範囲
+  // しおり（上の端に細い帯）
   for (const mk of S.marks) {
     const x0 = X(mk.a), x1 = X(mk.b);
     if (x1 < gut || x0 > W) continue;
@@ -2331,17 +2463,6 @@ function draw() {
     g.globalAlpha = looping() && S.loop.mark === mk.id ? 1 : 0.45;
     g.fillRect(x0, 0, Math.max(2, x1 - x0), 4);
     g.globalAlpha = 1;
-  }
-  if (marking) {
-    const sel = marking.sel || (marking.a != null ? [marking.a, marking.a] : null);
-    if (sel) {
-      const x0 = X(Math.min(sel[0], sel[1])), x1 = X(Math.max(sel[0], sel[1]));
-      g.fillStyle = C.loop;
-      g.fillRect(x0, 0, x1 - x0, H);
-      g.fillStyle = C.loopEdge;
-      g.fillRect(Math.round(x0) - 1, 0, 2, H);
-      g.fillRect(Math.round(x1) - 1, 0, 2, H);
-    }
   }
   // 小節線
   g.font = '500 11px ' + FONT;
@@ -2478,26 +2599,17 @@ function draw() {
       g.globalAlpha = 1;
     }
   }
-  // しおりを作っている時の案内（下の操作欄を高くしないよう、音程バーの中に出す）
-  if (marking) {
-    const lines = marking.a == null
-      ? ['練習したい所を、横になぞってください', '（始まりと終わりを1回ずつタップしてもOK）']
-      : ['始まりを決めました', '終わりの位置をタップしてください'];
-    const cx = gut + (W - gut) / 2;
-    g.font = '700 13px ' + FONT;
-    const bw = Math.min(W - gut - 12, Math.max(...lines.map((l) => g.measureText(l).width)) + 24);
-    g.fillStyle = C.surface;
-    g.globalAlpha = 0.92;
-    rrect(cx - bw / 2, top + 6, bw, 44, 10);
-    g.fill();
-    g.globalAlpha = 1;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = C.ink;
-    g.fillText(lines[0], cx, top + 19, bw - 12);
-    g.font = '500 12px ' + FONT;
-    g.fillStyle = C.muted;
-    g.fillText(lines[1], cx, top + 37, bw - 12);
+  // 選んだ音符（タップ・長押し）：縁取りと、和音を決める時刻の線。長押しが成立したら光らせる
+  const sel = press && press.long ? press.hit : pick;
+  if (sel) {
+    const n = sel.note, y = Y(n.m + tr);
+    g.strokeStyle = C.focus;
+    g.lineWidth = press && press.long ? 4 : 2.5;
+    rrect(X(n.s) - 2, y - barH / 2 - 2, Math.max(3, X(n.e) - X(n.s) + 2.5), barH + 4, barH / 2 + 2);
+    g.stroke();
+    if (press && press.long) { g.globalAlpha = 0.25; g.fillStyle = C.focus; g.fill(); g.globalAlpha = 1; }
+    g.fillStyle = C.focus;
+    g.fillRect(Math.round(X(sel.t)) - 1, top, 2, bot - top);
   }
   g.restore();
   // 左の音名
@@ -2536,6 +2648,7 @@ function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 // ===== 操作のつなぎ込み =====
 let seeking = false;
 let drag = null;
+let press = null; // 押している指：{ id, x, y, hit, timer, long, moved, canPick }
 $('openBtn').addEventListener('click', () => $('fileIn').click());
 $('openBtn2').addEventListener('click', () => $('fileIn').click());
 $('fileIn').addEventListener('change', (e) => { loadFile(e.target.files[0]); e.target.value = ''; });
@@ -2546,7 +2659,6 @@ $('confirmYes').addEventListener('click', () => { const a = pendingLoad; pending
 $('confirmNo').addEventListener('click', () => { pendingLoad = null; $('confirmBar').hidden = true; });
 document.querySelectorAll('input[name="mode"]').forEach((el) => el.addEventListener('change', () => setMode(Number(el.value))));
 $('loopBtn').addEventListener('click', () => setLoop(!looping()));
-$('markBtn').addEventListener('click', toggleMarking);
 $('loopA-').addEventListener('click', () => nudgeLoop('a', -1));
 $('loopA+').addEventListener('click', () => nudgeLoop('a', 1));
 $('loopB-').addEventListener('click', () => nudgeLoop('b', -1));
@@ -2634,54 +2746,62 @@ function movePan(x, y) {
   if (drag.axis !== 'x') shiftPitch(drag.pitch + dy / drag.rowH);
   kick();
 }
-// しおりモードの座標変換も、再生時刻ではなく現在の表示時刻を使う。
-// しおりを作っている時は、なぞった範囲（またはタップ2回）で始まりと終わりを決める
+// 指の動きで区別する：動かした＝表示の移動／動かさずに離した＝タップ（選ぶ）／
+// 止めている時に音符を0.45秒押した＝長押し（光る）→ 正常に離した時だけしおりを作る。
+// 2本目の指・pointercancel・捕捉が外れた時は何も作らない。一度動かした指は、止まっても長押しにならない。
+function clearPress() {
+  if (press) clearTimeout(press.timer);
+  press = null;
+}
 cv.addEventListener('pointerdown', (e) => {
-  if (!S.song || e.button !== 0 || e.isPrimary === false) return;
-  if (marking) {
-    const x = e.clientX - cv.getBoundingClientRect().left;
-    if (x < GUT) return;
-    const t = snapTime(timeAtX(x));
-    drag = { id: e.pointerId, x: e.clientX, mark: true, t };
-    if (marking.a == null) marking.sel = [t, t];
-    cv.setPointerCapture(e.pointerId);
-    kick();
-    return;
+  if (!S.song) return;
+  if (e.isPrimary === false) { clearPress(); return; } // 2本目の指：長押し・タップは取り消す（ピンチはブラウザに任せる）
+  if (e.button !== 0) return;
+  clearPress();
+  const r = cv.getBoundingClientRect();
+  const canPick = !T.playing && !R;
+  const hit = canPick ? noteAt(e.clientX - r.left, e.clientY - r.top) : null;
+  press = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, long: false, moved: false, timer: 0, canPick };
+  if (hit) {
+    press.timer = setTimeout(() => {
+      if (!press || press.moved) return;
+      press.long = true;
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (err) { /* 振動できない端末もある */ }
+      kick();
+    }, LONG_MS);
   }
   beginPan(e.clientX, e.clientY, e.pointerId);
-  cv.setPointerCapture(e.pointerId);
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 捕捉できなくても操作は続けられる */ }
   kick();
 });
 cv.addEventListener('pointermove', (e) => {
   if (!drag || drag.id !== e.pointerId) return;
-  if (drag.mark) {
-    if (Math.abs(e.clientX - drag.x) < 6) return;
-    drag.moved = true;
-    const t = snapTime(timeAtX(e.clientX - cv.getBoundingClientRect().left));
-    marking.sel = [marking.a != null ? marking.a : drag.t, t];
-    kick();
-    return;
+  if (press && press.id === e.pointerId) {
+    if (press.long) return; // 長押しが成立した後は、指が動いても表示を動かさない
+    if (!press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) < MOVE_PX) return;
+    press.moved = true;
+    clearTimeout(press.timer);
   }
   movePan(e.clientX, e.clientY);
 });
 const endDrag = () => { drag = null; kick(); };
 cv.addEventListener('pointerup', (e) => {
   if (!drag || drag.id !== e.pointerId) return;
-  if (drag && drag.mark && marking) {
-    const d = drag;
-    drag = null;
-    if (d.moved) { addMark(marking.sel[0], marking.sel[1]); return; }
-    if (marking.a == null) { // 1回目のタップ：始まり
-      marking.a = d.t;
-      marking.sel = null;
-    } else addMark(marking.a, d.t); // 2回目のタップ：終わり
-    kick();
-    return;
-  }
+  const p = press && press.id === e.pointerId ? press : null;
+  clearPress();
   endDrag();
+  if (!p || p.moved || !p.canPick || T.playing || R) return;
+  if (p.long && p.hit) markFromPick(p.hit);
+  else setPick(p.hit); // 何もない所のタップは、選択とシートを閉じるだけ（しおりは消さない）
 });
-cv.addEventListener('pointercancel', () => { if (drag && drag.mark && marking) marking.sel = null; endDrag(); });
-cv.addEventListener('lostpointercapture', () => { if (drag && drag.mark && marking) marking.sel = null; endDrag(); });
+cv.addEventListener('pointercancel', () => { clearPress(); endDrag(); });
+cv.addEventListener('lostpointercapture', () => { clearPress(); endDrag(); });
+cv.addEventListener('contextmenu', (e) => e.preventDefault()); // Android の長押しメニューを出さない
+$('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t, 1.5); });
+$('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
+$('markToBtn').addEventListener('click', () => setMarkEdge('b'));
+$('undoMarkBtn').addEventListener('click', undoMark);
+$('pickClose').addEventListener('click', () => setPick(null));
 $('followBtn').addEventListener('click', resumeFollow);
 $('pitchViewReset').addEventListener('click', () => { view.pitchOffset = 0; view.wheelPitch = 0; syncViewUI(); kick(); });
 cv.addEventListener('wheel', (e) => {
@@ -2722,7 +2842,7 @@ document.addEventListener('drop', (e) => {
 });
 // スペースキーで再生／一時停止
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && marking) { toggleMarking(); return; }
+  if (e.key === 'Escape' && pick) { setPick(null); return; }
   if (e.code !== 'Space' && e.key !== ' ') return;
   const tag = (e.target && e.target.tagName) || '';
   if (/^(INPUT|BUTTON|SELECT|TEXTAREA|SUMMARY|LABEL)$/.test(tag)) return;
