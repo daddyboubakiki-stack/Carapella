@@ -82,6 +82,21 @@ body {
 .banner.warn { border-color: var(--off); }
 .banner p { margin: 0; }
 .banner .actions { margin-top: 8px; }
+/* 曲専用リンク（共有） */
+.share { display: flex; flex-direction: column; gap: 8px; }
+.share[hidden] { display: none; }
+.share-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.share-title { font-weight: 700; }
+.share .iconbtn { width: 32px; height: 32px; flex: none; }
+.share .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.share-link { width: 100%; font: inherit; font-size: 0.82rem; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.share-note { font-size: 0.78rem; color: var(--muted); }
+.share-msg { font-size: 0.85rem; font-weight: 700; }
+.share-msg:empty { display: none; }
+.share-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.share-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.share-list .nm { flex: 1 1 8em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.share-sub { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
 
 /* 自分のパート（横に並ぶチップ） */
 .partbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-width: 0; }
@@ -426,6 +441,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <div class="actions">
       <button class="btn primary" id="openBtn" type="button">MIDIを開く</button>
       <button class="btn" id="demoBtn" type="button">デモ曲で試す</button>
+      <button class="btn" id="shareBtn" type="button" hidden>共有リンク</button>
       <input type="file" id="fileIn" accept=".mid,.midi,.kar,.rmi,audio/midi,audio/x-midi" hidden>
       </div>
     </details>
@@ -433,6 +449,30 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 
   <div class="banner" id="inAppNote" hidden>
     <p>LINEなどのアプリの中で開いています。この中ではマイクや録音の保存が使えないことがあります。画面のメニューから「ブラウザで開く」（Safari や Chrome）を選んでください。</p>
+  </div>
+  <div class="banner share" id="sharePanel" role="dialog" aria-labelledby="shareTitle" hidden>
+    <div class="share-head">
+      <p class="share-title" id="shareTitle">共有リンク</p>
+      <button class="iconbtn" id="shareClose" type="button" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg></button>
+    </div>
+    <div class="share" id="shareNew" hidden>
+      <p id="shareNewText"></p>
+      <div class="actions"><button class="btn small primary" id="shareMake" type="button">リンクを作る</button></div>
+    </div>
+    <div class="share" id="shareDone" hidden>
+      <input class="share-link" id="shareLink" type="text" readonly aria-label="共有リンク">
+      <div class="actions">
+        <button class="btn small primary" id="shareCopy" type="button">コピー</button>
+        <a class="btn small" id="shareLine" target="_blank" rel="noopener">LINEで送る</a>
+        <button class="btn small" id="shareStop" type="button">共有をやめる</button>
+      </div>
+    </div>
+    <p class="share-note">リンクを知っている人は誰でも開けます。共有をやめても、もう開いた人の画面からは消えません。</p>
+    <p class="share-msg" id="shareMsg" role="status"></p>
+    <div class="share" id="shareListBox" hidden>
+      <p class="share-sub">この端末で共有した曲</p>
+      <ul class="share-list" id="shareList"></ul>
+    </div>
   </div>
   <div class="banner warn" id="confirmBar" role="alertdialog" aria-labelledby="confirmText" hidden>
     <p id="confirmText"></p>
@@ -1646,9 +1686,12 @@ function demoSong() {
     bpm: 100,
   });
 }
-function setSong(song, label) {
+function setSong(song, label, meta) {
   if (T.playing) pause();
   S.song = song;
+  S.songBytes = (meta && meta.bytes) || null; // 共有リンクを作るための元のファイル（デモ曲・共有で開いた曲は null）
+  S.songVer = (meta && meta.ver) || null;
+  closeShare();
   view.follow = true;
   view.time = 0;
   view.pitchOffset = 0;
@@ -1690,6 +1733,7 @@ function setSong(song, label) {
   say('');
   renderParts();
   renderTakes();
+  syncShareBtn();
   requestPracticeLayout();
   syncLoopUI();
   syncTransportUI();
@@ -1708,15 +1752,175 @@ function guardUnsaved(action) {
 }
 async function loadFile(file) {
   if (!file) return;
-  let song;
+  let song, buf;
   try {
-    song = finalizeSong(parseMidi(await file.arrayBuffer()));
+    buf = await file.arrayBuffer();
+    song = finalizeSong(parseMidi(buf));
   } catch (e) {
     if (e && e.message === 'no_notes') say('「' + file.name + '」には歌のパート（音符）が見つかりませんでした。');
     else say('「' + file.name + '」はMIDIとして読めませんでした。拡張子が .mid か .midi のファイルを選んでください。');
     return;
   }
-  guardUnsaved(() => setSong(song, song.title || file.name.replace(/\.(midi?|kar|rmi)$/i, '')));
+  guardUnsaved(() => setSong(song, song.title || file.name.replace(/\.(midi?|kar|rmi)$/i, ''), { bytes: new Uint8Array(buf) }));
+}
+
+// ===== 曲専用リンク（共有）：Cloudflare Workers ＋ D1 の API（worker/）=====
+// ログインも合言葉もない。リンク（曲のID＋読み取りキー）を知っている人は誰でも開ける。
+// 共有をやめるための管理キーは、作った端末のブラウザにだけ保存する。
+const SHARE_API = ''; // 共有APIのURL（例：https://carapella-share.<アカウント>.workers.dev）。空の間は共有の機能を出さない
+const SHARE_KEY = 'acapella-renshucho:shares:v1';
+const SHARE_RE = /^#song=([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{22,64})$/;
+let sharePending = null; // 作っている途中の依頼（通信が切れても、同じIDで送り直して2つ作らない）
+let shareBusy = false;
+const rand64 = (n) => { const a = crypto.getRandomValues(new Uint8Array(n)); let s = ''; for (const x of a) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+async function sha256Hex(data) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', typeof data === 'string' ? new TextEncoder().encode(data) : data));
+  return [...d].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+function myShares() {
+  try { const v = JSON.parse(localStorage.getItem(SHARE_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => x && x.id && x.read && x.admin) : []; } catch (e) { return []; }
+}
+function saveShares(list) {
+  try { localStorage.setItem(SHARE_KEY, JSON.stringify(list)); } catch (e) { /* 記憶できなくても、リンクはその場で使える */ }
+}
+const shareLink = (x) => location.origin + location.pathname + '#song=' + x.id + '.' + x.read;
+function syncShareBtn() {
+  $('shareBtn').hidden = !SHARE_API || !(S.songBytes || myShares().length);
+}
+function closeShare() {
+  if ($('sharePanel')) $('sharePanel').hidden = true;
+}
+function shareSay(text) { $('shareMsg').textContent = text || ''; }
+async function openShare() {
+  if (!SHARE_API) return;
+  // スマホの「曲を開く」メニューは浮いて出るので、閉じないと共有の欄に重なる
+  if (S.song) $('fileMenu').open = !matchMedia('(max-width: 700px)').matches;
+  $('sharePanel').hidden = false;
+  shareSay('');
+  await renderShare();
+  $('sharePanel').scrollIntoView({ block: 'nearest' });
+}
+// 今の曲をこの端末で共有済みなら、そのリンクを出す。まだなら「リンクを作る」
+async function renderShare() {
+  const list = myShares();
+  let mine = null;
+  if (S.songBytes) {
+    const sha = await sha256Hex(S.songBytes);
+    mine = list.find((x) => x.sha === sha) || null;
+  }
+  $('shareNew').hidden = !(S.songBytes && !mine);
+  if (S.songBytes && !mine) $('shareNewText').textContent = '「' + S.label + '」の共有リンクを作ります。';
+  $('shareDone').hidden = !mine;
+  if (mine) {
+    $('shareLink').value = shareLink(mine);
+    $('shareLine').href = 'https://line.me/R/share?text=' + encodeURIComponent(mine.name + '\n' + shareLink(mine));
+    $('shareStop').dataset.id = mine.id;
+  }
+  const others = list.filter((x) => x !== mine);
+  $('shareListBox').hidden = !others.length;
+  const ul = $('shareList');
+  ul.textContent = '';
+  for (const x of others) {
+    const li = document.createElement('li');
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = x.name;
+    const cp = document.createElement('button');
+    cp.type = 'button'; cp.className = 'btn small'; cp.textContent = 'コピー';
+    cp.addEventListener('click', () => copyText(shareLink(x)));
+    const st = document.createElement('button');
+    st.type = 'button'; st.className = 'btn small'; st.textContent = '共有をやめる';
+    st.addEventListener('click', () => stopShare(x.id));
+    li.append(nm, cp, st);
+    ul.append(li);
+  }
+  syncShareBtn();
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); shareSay('コピーしました'); }
+  catch (e) { $('shareLink').select(); shareSay('リンクを長押しして、コピーしてください'); }
+}
+// 共有リンクを作る。成功（201/200）の時だけ「できました」と出す
+async function makeShare() {
+  if (!SHARE_API || !S.songBytes || shareBusy) return;
+  shareBusy = true;
+  $('shareMake').disabled = true;
+  shareSay('リンクを作っています…');
+  try {
+    const bytes = S.songBytes, name = S.label, sha = await sha256Hex(bytes);
+    if (!sharePending || sharePending.sha !== sha) sharePending = { id: rand64(12), read: rand64(16), admin: rand64(16), sha, name };
+    const p = sharePending;
+    const headers = { 'X-Read-Hash': await sha256Hex(p.read), 'X-Admin-Hash': await sha256Hex(p.admin) };
+    const put = () => fetch(SHARE_API + '/songs/' + p.id, {
+      method: 'PUT', body: bytes,
+      headers: { 'Content-Type': 'audio/midi', 'X-Song-Name': encodeURIComponent([...name].slice(0, 80).join('')), ...headers },
+    });
+    let r;
+    try { r = await put(); } catch (e) { r = await put(); } // 通信が切れたら、同じ依頼でもう1回だけ
+    if (r.status === 201 || r.status === 200) {
+      const list = myShares().filter((x) => x.id !== p.id);
+      list.unshift({ id: p.id, read: p.read, admin: p.admin, name: p.name, sha: p.sha, at: Date.now() });
+      saveShares(list);
+      sharePending = null;
+      await renderShare();
+      shareSay('リンクができました');
+    } else if (r.status === 429) {
+      shareSay('今は登録が混み合っています。時間をおいて、もう一度押してください。');
+    } else if (r.status === 413 || r.status === 415 || r.status === 400) {
+      sharePending = null;
+      shareSay('このファイルは共有できません（MIDIファイルで、256KBまで）。');
+    } else {
+      shareSay('保存できたか確認できませんでした。もう一度押してください（同じ曲が2つできることはありません）。');
+    }
+  } catch (e) {
+    shareSay('保存できたか確認できませんでした。もう一度押してください（同じ曲が2つできることはありません）。');
+  } finally {
+    shareBusy = false;
+    $('shareMake').disabled = false;
+  }
+}
+// 共有をやめる。200の時だけ「やめました」と出し、一覧から消す
+async function stopShare(id) {
+  const x = myShares().find((v) => v.id === id);
+  if (!x || shareBusy) return;
+  shareBusy = true;
+  shareSay('共有をやめています…');
+  try {
+    const r = await fetch(SHARE_API + '/songs/' + x.id + '/stop', { method: 'POST', headers: { 'X-Admin-Key': x.admin } });
+    if (r.status === 200 || r.status === 404) {
+      saveShares(myShares().filter((v) => v.id !== id));
+      await renderShare();
+      shareSay(r.status === 200 ? '共有をやめました' : 'この曲の共有は、もうありません');
+    } else {
+      shareSay('今は共有をやめられませんでした。時間をおいて、もう一度押してください。');
+    }
+  } catch (e) {
+    shareSay('今は共有をやめられませんでした。時間をおいて、もう一度押してください。');
+  } finally {
+    shareBusy = false;
+  }
+}
+// リンク（#song=ID.キー）で開いた時：曲を取り出して、読み込んだ状態にする（自動で再生はしない）
+async function openSharedFromHash() {
+  const m = SHARE_RE.exec(location.hash);
+  if (!m) return;
+  if (!SHARE_API) { say('この共有リンクは、まだ使えません。'); return; }
+  say('共有された曲を読み込んでいます…', true);
+  let r;
+  try {
+    r = await fetch(SHARE_API + '/songs/' + m[1], { headers: { 'X-Song-Key': m[2] }, cache: 'no-store' });
+  } catch (e) { say('今は曲を読み込めません。時間をおいて、もう一度開いてください。'); return; }
+  if (r.status === 410) { say('この曲の共有は、やめられました。'); return; }
+  if (r.status === 404) { say('曲が見つかりません。リンクが正しいか確かめてください。'); return; }
+  if (r.status !== 200 || !/midi/i.test(r.headers.get('Content-Type') || '')) { say('今は曲を読み込めません。時間をおいて、もう一度開いてください。'); return; }
+  let song, name;
+  try {
+    name = decodeURIComponent(r.headers.get('X-Song-Name') || '') || '共有された曲';
+    song = finalizeSong(parseMidi(await r.arrayBuffer()));
+  } catch (e) { say('共有された曲を読み込めませんでした。'); return; }
+  const ver = (r.headers.get('X-Song-Sha256') || '').slice(0, 16) || null;
+  say(''); // 保存していない録音の確認で取りやめた時に「読み込んでいます…」を残さない
+  guardUnsaved(() => setSong(song, name, { ver }));
 }
 
 // ===== 画面：パート =====
@@ -1937,7 +2141,8 @@ function syncLoopUI() {
 // ===== しおり：ピアノロールで始まりと終わりを指定した区間（曲ごとに、この端末に記憶） =====
 const MARK_KEY = 'acapella-renshucho:marks:v1';
 const MARK_MIN = 0.2; // しおりの最短の長さ（秒）
-const songKey = () => S.label + '|' + S.song.duration.toFixed(2) + '|' + S.song.parts.length;
+// 曲ごとの記憶（しおり・色・音色）のキー。共有リンクの曲は中身のハッシュ（版）も入れ、差し替えた版に古いしおりを当てない
+const songKey = () => S.label + '|' + S.song.duration.toFixed(2) + '|' + S.song.parts.length + (S.songVer ? '|' + S.songVer : '');
 function loadMarks() {
   try {
     const all = JSON.parse(localStorage.getItem(MARK_KEY) || '{}') || {};
@@ -2965,6 +3170,12 @@ let pinch = null; // 2本指で広げる・つまむ途中：{ d0, z0 }
 $('openBtn').addEventListener('click', () => $('fileIn').click());
 $('openBtn2').addEventListener('click', () => $('fileIn').click());
 $('fileIn').addEventListener('change', (e) => { loadFile(e.target.files[0]); e.target.value = ''; });
+$('shareBtn').addEventListener('click', openShare);
+$('shareClose').addEventListener('click', closeShare);
+$('shareMake').addEventListener('click', makeShare);
+$('shareCopy').addEventListener('click', () => copyText($('shareLink').value));
+$('shareStop').addEventListener('click', (e) => stopShare(e.currentTarget.dataset.id));
+window.addEventListener('hashchange', openSharedFromHash);
 const loadDemo = () => guardUnsaved(() => setSong(demoSong(), 'かえるの合唱（3部輪唱）'));
 $('demoBtn').addEventListener('click', loadDemo);
 $('demoBtn2').addEventListener('click', loadDemo);
@@ -3292,6 +3503,8 @@ readColors();
 resize();
 syncTransportUI();
 syncMicUI();
+syncShareBtn();
+openSharedFromHash();
 })();
 </script>
 </body>
