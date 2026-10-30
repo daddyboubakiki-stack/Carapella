@@ -338,6 +338,15 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .compact-practice .legend { gap: 2px 6px; font-size: 0.6rem; }
   .compact-practice .legend svg { width: 13px; }
 }
+/* 分数と方向を2行で示し、表示が変わっても欄の高さを保つ。 */
+.hud { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); }
+.read.diff .v { font-size: clamp(0.72rem, 2.9vw, 1.15rem); height: 2.415rem; display: flex; align-items: center; }
+@media (max-width: 700px) {
+  .read.diff .v { height: 1.4375rem; }
+  .read.diff .verdict { font-size: 0.64rem; gap: 3px; }
+  .read.diff .verdict svg { width: 10px; height: 10px; }
+  .compact-practice .read.diff .v { height: 1.265rem; }
+}
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
@@ -496,10 +505,10 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <div class="set">
         <span class="lbl">判定のきびしさ</span>
         <div class="seg" role="radiogroup" aria-label="判定のきびしさ">
-          <label><input type="radio" name="tol" value="50" checked>ふつう（±50セント）</label>
-          <label><input type="radio" name="tol" value="25">きびしい（±25セント）</label>
+          <label><input type="radio" name="tol" value="50" checked>ふつう（半音の1/2まで）</label>
+          <label><input type="radio" name="tol" value="25">きびしい（半音の1/4まで）</label>
         </div>
-        <p class="help">100セントが半音1つ分です。±50セントは「いちばん近い半音が合っている」くらいの幅です。ビブラートをかけると、きびしい設定では中心が合っていても外れが増えます。</p>
+        <p class="help">目標より高い側・低い側のどちらも、この幅までを「合っている」とします。半音は、ピアノの隣り合う鍵盤どうしの音の差です。ずれの表示は読みやすい分数に丸めるので「約」が付きますが、判定には丸める前の値を使います。ビブラートをかけると、きびしい設定では中心が合っていても外れが増えます。</p>
       </div>
       <div class="set">
         <span class="lbl" id="sensitivityLbl">音を拾う感度</span>
@@ -544,7 +553,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <div class="how">
       <p>判定のしくみ：声が出ていて、自分のパートに音符がある間だけ、声の高さと音符の高さの差を測ります。差が設定の幅に入っていれば「合っている」です。合っている部分はなめらかな太い線、外れた部分はギザギザの線で描きます。</p>
       <p>「音程一致」は、判定した時間のうち合っていた時間の割合です。リズム（入りや切りのタイミング）は判定していません。音が切り替わる瞬間は、上手に歌っても少し「外れ」が出ます。</p>
-      <p>目標の音はMIDIの音（平均律）です。和音の中では、平均律から少しずらした方がきれいに響くことがあります（たとえば長3度は平均律より約14セント低いと響きが澄みます）。「ずれ ±0」がいつも一番よいハモりとは限りません。</p>
+      <p>目標の音はMIDIの音（平均律）です。和音の中では、平均律から少しずらした方がきれいに響くことがあります（たとえば長3度は平均律より半音の約1/7低いと響きが澄みます）。「ずれがない」がいつも一番よいハモりとは限りません。</p>
       <p>このページの設定（遅れ補正・音名・カウントなど）と、最後に選んだパート名は、この端末のブラウザに記憶します。</p>
     </div>
   </details>
@@ -2027,6 +2036,24 @@ function syncMicUI() {
   $('micBtn').setAttribute('aria-label', on ? 'マイクをオフ（現在オン）' : 'マイクをオン（現在オフ）');
   $('micBtn').style.setProperty('--lvl', '0');
 }
+// 表示だけを身近な分数に丸める。判定・記録のセント値は変更しない。
+function formatPitchDifference(cents) {
+  if (!Number.isFinite(cents)) return { amount: '—', direction: '', text: '—' };
+  const semitones = Math.abs(cents) / 100;
+  if (semitones < 1 / 16) return { amount: 'ほぼ同じ', direction: '', text: 'ほぼ同じ' };
+  let amount;
+  if (semitones < 1) {
+    const fractions = [[1, 8], [1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [1, 1]];
+    const [n, d] = fractions.reduce((best, f) =>
+      Math.abs(f[0] / f[1] - semitones) < Math.abs(best[0] / best[1] - semitones) ? f : best);
+    amount = d === 1 ? '約1半音' : `半音の約${n}/${d}`;
+  } else {
+    const halves = Math.round(semitones * 2);
+    amount = halves % 2 ? `約${Math.floor(halves / 2)}と1/2半音` : `約${halves / 2}半音`;
+  }
+  const direction = cents > 0 ? '高い' : '低い';
+  return { amount, direction, text: amount + direction };
+}
 function updateReadouts() {
   let tgt = null, you = null, cents = null, ok = null;
   if (S.song && T.playing && T.mode === 'review' && T.reviewTake) {
@@ -2056,18 +2083,16 @@ function updateReadouts() {
   box.classList.toggle('off', ok === false);
   if (cents == null) {
     $('hDiff').textContent = '—';
+    $('hDiff').removeAttribute('aria-label');
     $('hVerdict').textContent = '';
   } else {
-    const a = Math.abs(cents), sign = cents > 0 ? '+' : cents < 0 ? '−' : '±';
-    if (a < 100) $('hDiff').innerHTML = sign + Math.round(a) + '<span class="u">セント</span>';
-    else {
-      const semi = Math.round(a / 100);
-      $('hDiff').innerHTML = sign + semi + '<span class="u">半音</span>';
-    }
+    const a = Math.abs(cents), difference = formatPitchDifference(cents);
+    $('hDiff').textContent = difference.amount;
+    $('hDiff').setAttribute('aria-label', difference.text);
     const shape = ok
       ? '<svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="currentColor"/></svg>'
       : '<svg viewBox="0 0 14 14"><path d="M7 0l1.6 4 4.2-1.2-2.6 3.5 2.6 3.5-4.2-1.2L7 14 5.4 9.6l-4.2 1.2 2.6-3.5L1.2 2.8l4.2 1.2z" fill="currentColor"/></svg>';
-    $('hVerdict').innerHTML = shape + '<span>' + (ok ? '合ってる' : a >= 2400 ? '音を確認' : cents > 0 ? '高め ↓' : '低め ↑') + '</span>';
+    $('hVerdict').innerHTML = shape + '<span>' + (a >= 2400 ? difference.direction + '・音を確認' : ok ? (difference.direction ? difference.direction + '・合ってる' : '合ってる') : difference.direction + (cents > 0 ? ' ↓' : ' ↑')) + '</span>';
   }
   // 位置と時間
   if (S.song) {
