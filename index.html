@@ -383,6 +383,32 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .read.diff .verdict svg { width: 10px; height: 10px; }
   .compact-practice .read.diff .v { height: 1.265rem; }
 }
+
+/* 横向きの低い画面：操作を2列にまとめ、グラフと操作欄を同時に見られる高さにする。 */
+@media (min-width: 560px) and (max-height: 500px) {
+  .has-song .roll { height: clamp(110px, calc(100svh - 124px - env(safe-area-inset-bottom, 0px)), 280px); min-height: 110px; }
+  .has-song:has(#loopBox:not([hidden])) .roll { height: clamp(110px, calc(100svh - 176px - env(safe-area-inset-bottom, 0px)), 280px); }
+  .legend { gap: 2px 10px; font-size: 0.64rem; margin: 4px 0 0; line-height: 1.4; }
+  .legend span { gap: 3px; }
+  .legend svg { width: 17px; height: 10px; }
+  .plot-help { margin-top: 0; line-height: 1.2; }
+  .plot-help > summary { font-size: 0.64rem; }
+  .transport { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3px 10px; margin-top: 6px; padding-top: 4px; padding-bottom: max(4px, env(safe-area-inset-bottom, 0px)); }
+  .transport .score { grid-column: 1 / -1; font-size: 0.68rem; }
+  .transport .main { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .transport .main .btn { min-width: 0; min-height: 44px; height: 44px; flex-direction: column; gap: 1px; padding: 3px 1px; font-size: 0.64rem; line-height: 1.15; border-radius: 10px; white-space: normal; }
+  .transport .main .btn span { display: block; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+  .transport .main .btn svg { width: 14px; height: 14px; }
+  .transport .timeline { grid-column: 2; grid-row: 2; min-width: 0; gap: 0 !important; }
+  .transport .seektrack input { height: 22px; }
+  .transport .seek-meta { gap: 4px; flex-wrap: nowrap; }
+  .transport .seek-meta .btn { min-height: 26px; padding: 1px 6px; font-size: 0.64rem; }
+  .transport .time { font-size: 0.62rem; }
+  .transport .loopbox { grid-column: 1 / -1; max-height: 48px; overflow-y: auto; margin: 0; font-size: 0.72rem; }
+  .transport .mark .chip { min-height: 30px; font-size: 0.72rem; }
+  .transport .btn.mic::after { left: 6px; right: 6px; bottom: 2px; }
+}
+
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
