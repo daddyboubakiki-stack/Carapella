@@ -3050,6 +3050,9 @@ cv.addEventListener('pointerup', (e) => {
 cv.addEventListener('pointercancel', (e) => { liftFinger(e); clearPress(); endDrag(); });
 cv.addEventListener('lostpointercapture', (e) => { liftFinger(e); clearPress(); endDrag(); });
 cv.addEventListener('contextmenu', (e) => e.preventDefault()); // Android の長押しメニューを出さない
+// iPhone の Safari は、2本指の操作を独自の「ジェスチャー」としてページの拡大に使うことがあるので、音程バーの上では止める
+cv.addEventListener('gesturestart', (e) => e.preventDefault());
+cv.addEventListener('gesturechange', (e) => e.preventDefault());
 $('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t, 1.5); });
 $('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
 $('markToBtn').addEventListener('click', () => setMarkEdge('b'));
