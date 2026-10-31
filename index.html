@@ -1787,7 +1787,8 @@ function myShares() {
 function saveShares(list) {
   try { localStorage.setItem(SHARE_KEY, JSON.stringify(list)); shareMem = null; return true; } catch (e) { shareMem = list; return false; }
 }
-const shareLink = (x) => location.origin + location.pathname + '#song=' + x.id + '.' + x.read;
+// LINEで開かれた時は、いつものブラウザ（Chrome・Safari）で開く（LINE公式の openExternalBrowser=1）。LINEの中ではマイクが使えず、画面も狭いため
+const shareLink = (x) => location.origin + location.pathname + '?openExternalBrowser=1#song=' + x.id + '.' + x.read;
 function syncShareBtn() {
   $('shareBtn').hidden = !SHARE_API || !(S.songBytes || myShares().length);
 }
@@ -2249,18 +2250,22 @@ function chordAt(t) {
   });
   return out;
 }
-// 和音を鳴らす：各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）
-function playChord(t, dur) {
+// 和音を鳴らす：低い音から1音ずつ重ね、全部そろってから hold 秒いっしょに伸ばす
+// 各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）
+const CHORD_STEP = 0.3; // 次の音を重ねるまでの間（秒）
+function playChord(t, hold) {
   try { ensureCtx(); } catch (e) { say(e.message); return; }
   const now = A.ctx.currentTime + 0.02;
-  for (const c of chordAt(t)) {
+  const notes = chordAt(t).sort((a, b) => a.m - b.m || a.part - b.part);
+  const end = (notes.length - 1) * CHORD_STEP + hold; // 全部の音がここで一緒に終わる
+  notes.forEach((c, i) => {
     const st = S.pstate[c.part];
     const gn = A.ctx.createGain();
     gn.gain.value = st.vol;
     gn.connect(A.guide);
-    playNote(c.m + curTr(), now, dur, 100, gn, st.tone);
-    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (dur + 1) * 1000);
-  }
+    playNote(c.m + curTr(), now + i * CHORD_STEP, end - i * CHORD_STEP, 100, gn, st.tone);
+    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (end + 1) * 1000);
+  });
 }
 function setPick(p, msg) {
   pick = p;
@@ -2801,9 +2806,18 @@ function requestPracticeLayout() {
   if (layoutFrame) return;
   layoutFrame = requestAnimationFrame(() => { layoutFrame = 0; fitPractice(); });
 }
+// LINEなどアプリの中のブラウザでは、上下のバーが出入りするたびに svh も変わる。
+// 小さい方の高さを覚えておき、バーの出入りくらい（160px以内）大きくなっても使わない（音程バーが伸び縮みしないように）。
+// 幅が変わった時（縦横の回転）と、大きく変わった時（分割画面の変更など）は測り直す
+let stableVp = { w: 0, h: 0 };
+function stableViewportHeight() {
+  const w = window.innerWidth, h = $('viewportProbe').getBoundingClientRect().height;
+  if (w !== stableVp.w || h < stableVp.h || h > stableVp.h + 160) stableVp = { w, h };
+  return stableVp.h;
+}
 function fitPractice() {
   const mobile = matchMedia('(max-width: 700px)').matches;
-  const viewport = $('viewportProbe').getBoundingClientRect().height;
+  const viewport = stableViewportHeight();
   // 高さの境界も svh に統一する。動く viewport のメディア条件では切り替えない。
   document.body.classList.toggle('compact-practice', mobile && viewport <= 620);
   if (!S.song || !mobile) {
