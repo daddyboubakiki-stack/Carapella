@@ -469,6 +469,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     </div>
     <p class="share-note">リンクを知っている人は誰でも開けます。共有をやめても、もう開いた人の画面からは消えません。</p>
     <p class="share-msg" id="shareMsg" role="status"></p>
+    <input class="share-link" id="shareCopyBox" type="text" readonly aria-label="コピーするリンク" hidden>
     <div class="share" id="shareListBox" hidden>
       <p class="share-sub">この端末で共有した曲</p>
       <ul class="share-list" id="shareList"></ul>
@@ -1772,16 +1773,19 @@ const SHARE_KEY = 'acapella-renshucho:shares:v1';
 const SHARE_RE = /^#song=([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{22,64})$/;
 let sharePending = null; // 作っている途中の依頼（通信が切れても、同じIDで送り直して2つ作らない）
 let shareBusy = false;
+let shareMem = null; // 端末に記憶できなかった時の一覧（このページを開いている間だけ使う）
 const rand64 = (n) => { const a = crypto.getRandomValues(new Uint8Array(n)); let s = ''; for (const x of a) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 async function sha256Hex(data) {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', typeof data === 'string' ? new TextEncoder().encode(data) : data));
   return [...d].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 function myShares() {
+  if (shareMem) return shareMem.slice();
   try { const v = JSON.parse(localStorage.getItem(SHARE_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => x && x.id && x.read && x.admin) : []; } catch (e) { return []; }
 }
+// 端末に記憶する。できなかった時は false を返し、リンクと「共有をやめる」をこのページの間だけ使えるようにする
 function saveShares(list) {
-  try { localStorage.setItem(SHARE_KEY, JSON.stringify(list)); } catch (e) { /* 記憶できなくても、リンクはその場で使える */ }
+  try { localStorage.setItem(SHARE_KEY, JSON.stringify(list)); shareMem = null; return true; } catch (e) { shareMem = list; return false; }
 }
 const shareLink = (x) => location.origin + location.pathname + '#song=' + x.id + '.' + x.read;
 function syncShareBtn() {
@@ -1802,6 +1806,7 @@ async function openShare() {
 }
 // 今の曲をこの端末で共有済みなら、そのリンクを出す。まだなら「リンクを作る」
 async function renderShare() {
+  $('shareCopyBox').hidden = true;
   const list = myShares();
   let mine = null;
   if (S.songBytes) {
@@ -1837,8 +1842,14 @@ async function renderShare() {
   syncShareBtn();
 }
 async function copyText(text) {
+  const box = $('shareCopyBox');
+  box.hidden = true;
   try { await navigator.clipboard.writeText(text); shareSay('コピーしました'); }
-  catch (e) { $('shareLink').select(); shareSay('リンクを長押しして、コピーしてください'); }
+  catch (e) {
+    // コピーを断られた時：押した曲のリンクを見える欄に出して選ぶ（手でコピーできるように）
+    box.value = text; box.hidden = false; box.focus(); box.select();
+    shareSay('下のリンクを長押しして、コピーしてください');
+  }
 }
 // 共有リンクを作る。成功（201/200）の時だけ「できました」と出す
 async function makeShare() {
@@ -1860,10 +1871,10 @@ async function makeShare() {
     if (r.status === 201 || r.status === 200) {
       const list = myShares().filter((x) => x.id !== p.id);
       list.unshift({ id: p.id, read: p.read, admin: p.admin, name: p.name, sha: p.sha, at: Date.now() });
-      saveShares(list);
+      const kept = saveShares(list);
       sharePending = null;
       await renderShare();
-      shareSay('リンクができました');
+      shareSay(kept ? 'リンクができました' : 'リンクができました。ただ、この端末に記憶できません。ページを閉じると、共有をやめられなくなります。');
     } else if (r.status === 429) {
       shareSay('今は登録が混み合っています。時間をおいて、もう一度押してください。');
     } else if (r.status === 413 || r.status === 415 || r.status === 400) {
