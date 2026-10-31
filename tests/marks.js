@@ -7,7 +7,7 @@ fs.mkdirSync(path.join(T, 'tests', 'out'), { recursive: true });
 const src = fs.readFileSync(path.join(T, 'tests/e2e2.js'), 'utf8');
 const HARNESS = eval('(' + src.match(/const HARNESS = (\(\) => \{[\s\S]*?\n\});/)[1] + ')');
 // アプリの中の状態をテストから読めるよう、配信する時だけ window に出す
-const EXPOSE = "Object.assign(window, { S, T, view, loopRange, seekTo, viewTime, displayTime, pixelsPerSecond, viewRange, curTr, fitRange, chordAt, noteAt, panToTime, GUT });"
+const EXPOSE = "Object.assign(window, { S, T, view, loopRange, seekTo, viewTime, displayTime, pixelsPerSecond, viewRange, curTr, fitRange, chordAt, playChord, noteAt, panToTime, GUT });"
   + " Object.defineProperty(window, 'pick', { get: () => pick }); Object.defineProperty(window, 'press', { get: () => press });";
 const server = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end(fs.readFileSync(path.join(T, 'index.html'), 'utf8').replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, EXPOSE + ' })();</script></body>')); }).listen(0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -128,9 +128,26 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
   check('短いタップでシートが出て、しおりは作らない', st.n === 0 && st.sheet && st.pick != null, JSON.stringify(st));
   const before = await p.evaluate(() => window.__starts.length);
   await p.click('#chordBtn'); await sleep(150);
-  st = await p.evaluate((b) => ({ started: window.__starts.slice(b).map((x) => Math.round(x.f)), chord: chordAt(pick.t).map((c) => Math.round(440 * Math.pow(2, (c.m + curTr() - 69) / 12))) }), before);
+  st = await p.evaluate((b) => {
+    const xs = window.__starts.slice(b).slice().sort((x, y) => x.when - y.when);
+    return {
+      started: xs.map((x) => Math.round(x.f)),
+      gaps: xs.slice(1).map((x, i) => +(x.when - xs[i].when).toFixed(3)),
+      chord: chordAt(pick.t).map((c) => Math.round(440 * Math.pow(2, (c.m + curTr() - 69) / 12))),
+    };
+  }, before);
   check('「和音を鳴らす」で、押した時刻に鳴っている全パートの音が鳴る', st.chord.length >= 1 && JSON.stringify([...st.started].sort()) === JSON.stringify([...st.chord].sort()), JSON.stringify(st));
   await p.keyboard.press('Escape');
+  // 音がいちばん多く重なる時刻で、重ね方を確かめる
+  const before2 = await p.evaluate(() => window.__starts.length);
+  st = await p.evaluate((b) => {
+    let best = null;
+    for (const pt of S.song.parts) for (const n of pt.notes) { const c = chordAt(n.s + 0.01); if (!best || c.length > best.n) best = { t: n.s + 0.01, n: c.length }; }
+    playChord(best.t, 1.5);
+    const xs = window.__starts.slice(b).slice().sort((x, y) => x.when - y.when);
+    return { n: best.n, started: xs.map((x) => Math.round(x.f)), gaps: xs.slice(1).map((x, i) => +(x.when - xs[i].when).toFixed(3)) };
+  }, before2);
+  check('和音は低い音から1音ずつ重ねて鳴る（0.3秒ずつ）', st.n >= 3 && st.started.length === st.n && st.started.every((f, i) => i === 0 || st.started[i - 1] <= f) && st.gaps.every((g) => Math.abs(g - 0.3) < 0.01), JSON.stringify(st));
 
   // 7) 何もない所のタップでシートを閉じる（しおりは消さない）
   await p.mouse.move(n.x, n.y); await p.mouse.down(); await sleep(600); await p.mouse.up(); await sleep(100);
