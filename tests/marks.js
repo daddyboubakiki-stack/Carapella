@@ -138,16 +138,28 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
   }, before);
   check('「和音を鳴らす」で、押した時刻に鳴っている全パートの音が鳴る', st.chord.length >= 1 && JSON.stringify([...st.started].sort()) === JSON.stringify([...st.chord].sort()), JSON.stringify(st));
   await p.keyboard.press('Escape');
-  // 音がいちばん多く重なる時刻で、重ね方を確かめる
+  // 音がいちばん多く重なる時刻で、重ね方を確かめる（1秒ずつ低い音から重ね、押してから10秒で一緒に鳴り終わる）
   const before2 = await p.evaluate(() => window.__starts.length);
   st = await p.evaluate((b) => {
     let best = null;
     for (const pt of S.song.parts) for (const n of pt.notes) { const c = chordAt(n.s + 0.01); if (!best || c.length > best.n) best = { t: n.s + 0.01, n: c.length }; }
-    playChord(best.t, 1.5);
-    const xs = window.__starts.slice(b).slice().sort((x, y) => x.when - y.when);
-    return { n: best.n, started: xs.map((x) => Math.round(x.f)), gaps: xs.slice(1).map((x, i) => +(x.when - xs[i].when).toFixed(3)) };
+    const os = OscillatorNode.prototype.stop, stops = [];
+    OscillatorNode.prototype.stop = function (w) { stops.push(w); return os.call(this, w); };
+    playChord(best.t);
+    const first = stops.splice(0);
+    playChord(best.t); // 押し直す
+    OscillatorNode.prototype.stop = os;
+    const xs = window.__starts.slice(b).slice(0, best.n).sort((x, y) => x.when - y.when);
+    const t0 = xs[0].when, again = window.__starts.slice(b + best.n);
+    return {
+      n: best.n, started: xs.map((x) => Math.round(x.f)), gaps: xs.slice(1).map((x, i) => +(x.when - xs[i].when).toFixed(3)),
+      ends: first.slice(-best.n).map((w) => +(w - 0.2 - t0).toFixed(3)), // 先に、前から鳴っていた音を止めた分が入る
+      oldStopped: stops.filter((w) => w - t0 < 0.5).length, again: again.length,
+    };
   }, before2);
-  check('和音は低い音から1音ずつ重ねて鳴る（0.3秒ずつ）', st.n >= 3 && st.started.length === st.n && st.started.every((f, i) => i === 0 || st.started[i - 1] <= f) && st.gaps.every((g) => Math.abs(g - 0.3) < 0.01), JSON.stringify(st));
+  check('和音は低い音から1音ずつ重ねて鳴る（1秒ずつ）', st.n >= 3 && st.started.length === st.n && st.started.every((f, i) => i === 0 || st.started[i - 1] <= f) && st.gaps.every((g) => Math.abs(g - 1) < 0.01), JSON.stringify(st));
+  check('全部の音が、押してから10秒で一緒に鳴り終わる', st.ends.length === st.n && st.ends.every((e) => Math.abs(e - 10) < 0.01), JSON.stringify(st.ends));
+  check('押し直すと、鳴っている和音を止めて鳴らし直す', st.oldStopped >= st.n && st.again === st.n, JSON.stringify(st));
 
   // 7) 何もない所のタップでシートを閉じる（しおりは消さない）
   await p.mouse.move(n.x, n.y); await p.mouse.down(); await sleep(600); await p.mouse.up(); await sleep(100);

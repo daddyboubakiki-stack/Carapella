@@ -2250,21 +2250,24 @@ function chordAt(t) {
   });
   return out;
 }
-// 和音を鳴らす：低い音から1音ずつ重ね、全部そろってから hold 秒いっしょに伸ばす
-// 各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）
-const CHORD_STEP = 0.3; // 次の音を重ねるまでの間（秒）
-function playChord(t, hold) {
+// 和音を鳴らす：低い音から1音ずつ重ね、押してから CHORD_TOTAL 秒で全部の音が一緒に鳴り終わる
+// 各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）。押し直すと、鳴っている和音を止めて鳴らし直す
+const CHORD_STEP = 1; // 次の音を重ねるまでの間（秒）
+const CHORD_TOTAL = 10; // 押してから鳴り終わるまで（秒）
+function playChord(t) {
   try { ensureCtx(); } catch (e) { say(e.message); return; }
+  stopNotes();
   const now = A.ctx.currentTime + 0.02;
   const notes = chordAt(t).sort((a, b) => a.m - b.m || a.part - b.part);
-  const end = (notes.length - 1) * CHORD_STEP + hold; // 全部の音がここで一緒に終わる
+  // 音が多くて入りきらない時は、最後の音も1秒は伸ばせるように間を詰める
+  const step = notes.length > 1 ? Math.min(CHORD_STEP, (CHORD_TOTAL - 1) / (notes.length - 1)) : 0;
   notes.forEach((c, i) => {
     const st = S.pstate[c.part];
     const gn = A.ctx.createGain();
     gn.gain.value = st.vol;
     gn.connect(A.guide);
-    playNote(c.m + curTr(), now + i * CHORD_STEP, end - i * CHORD_STEP, 100, gn, st.tone);
-    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (end + 1) * 1000);
+    playNote(c.m + curTr(), now + i * step, CHORD_TOTAL - i * step, 100, gn, st.tone);
+    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (CHORD_TOTAL + 1) * 1000);
   });
 }
 function setPick(p, msg) {
@@ -3402,7 +3405,7 @@ cv.addEventListener('contextmenu', (e) => e.preventDefault()); // Android の長
 // iPhone の Safari は、2本指の操作を独自の「ジェスチャー」としてページの拡大に使うことがあるので、音程バーの上では止める
 cv.addEventListener('gesturestart', (e) => e.preventDefault());
 cv.addEventListener('gesturechange', (e) => e.preventDefault());
-$('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t, 1.5); });
+$('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t); });
 $('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
 $('markToBtn').addEventListener('click', () => setMarkEdge('b'));
 $('undoMarkBtn').addEventListener('click', undoMark);
