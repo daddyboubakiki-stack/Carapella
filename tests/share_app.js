@@ -148,6 +148,44 @@ let cleanup = async () => {};
   check('やめる時にエラー → 「やめられませんでした」と出し、共有中のまま残す', (await shareMsg(p)).includes('やめられませんでした') && st === 1, await shareMsg(p));
   db.state.fail = false;
 
+  // 6b) 端末に記憶できない（保存領域がいっぱい・使えない）→ リンクと「共有をやめる」はその場で使え、そのことを知らせる
+  const sv = await newPage();
+  await sv.addInitScript(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (String(k).includes(':shares:')) throw new DOMException('full', 'QuotaExceededError'); return orig.call(this, k, v); };
+  });
+  await sv.goto(APP);
+  await sv.setInputFiles('#fileIn', path.join(__dirname, 'midi', 'format0_4ch.mid')); await sleep(300);
+  await sv.click('#shareBtn'); await sv.click('#shareMake'); await sleep(400);
+  const svLink = await sv.inputValue('#shareLink').catch(() => '');
+  const svRows = rows().length;
+  check('記憶できない時も、リンクと「共有をやめる」が出る', await sv.isVisible('#shareLink') && /#song=[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22}$/.test(svLink) && await sv.isVisible('#shareStop') && await sv.isHidden('#shareNew'), svLink);
+  check('記憶できなかったことを知らせる（「できました」だけにしない）', (await shareMsg(sv)).includes('記憶できません'), await shareMsg(sv));
+  if (await sv.isVisible('#shareStop')) { await sv.click('#shareStop'); await sleep(300); }
+  check('記憶できない時も、その場で共有をやめられる', (await shareMsg(sv)).includes('やめました') && rows().length === svRows && rows().some((x) => svLink.includes(x.id) && x.stopped_at != null), await shareMsg(sv));
+  await sv.context().close();
+
+  // 6c) コピーを断られた時：押した曲のリンクを見える欄に出して選ぶ（一覧から押しても、別の曲のリンクにならない）
+  const cp = await p.context().newPage();
+  cp.on('pageerror', (e) => errs.push(e.message));
+  await cp.addInitScript(() => { navigator.clipboard.writeText = () => Promise.reject(new DOMException('denied', 'NotAllowedError')); });
+  await cp.goto(APP); await sleep(200);
+  await cp.click('#shareBtn'); await sleep(200);
+  const want = await cp.evaluate(() => { const x = JSON.parse(localStorage.getItem('acapella-renshucho:shares:v1'))[0]; return location.origin + location.pathname + '#song=' + x.id + '.' + x.read; });
+  await cp.click('#shareList button:has-text("コピー")'); await sleep(150);
+  const cpst = await cp.evaluate(() => { const a = document.activeElement; return { id: a && a.id, value: a && a.value, visible: !!(a && a.offsetParent), sel: a && a.selectionStart === 0 && a.selectionEnd === (a.value || '').length && a.value.length > 0 }; });
+  check('一覧からのコピーを断られたら、その曲のリンクが見える欄で選ばれる', cpst.value === want && cpst.visible && cpst.sel, JSON.stringify(cpst));
+  check('手でコピーするよう案内が出る', (await shareMsg(cp)).includes('長押し'), await shareMsg(cp));
+  // 今の曲を共有中で、一覧の別の曲をコピーしても、今の曲のリンクにならない
+  await cp.setInputFiles('#fileIn', path.join(__dirname, 'midi', 'long_5parts.mid')); await sleep(300);
+  await cp.click('#shareBtn'); await sleep(150);
+  if (await cp.isVisible('#shareMake')) { await cp.click('#shareMake'); await sleep(400); }
+  const cur = await cp.inputValue('#shareLink');
+  await cp.click('#shareList button:has-text("コピー")'); await sleep(150);
+  const cpv = await cp.evaluate(() => document.activeElement && document.activeElement.value);
+  check('今の曲を共有中でも、一覧で押した曲のリンクが選ばれる', cpv === want && cpv !== cur, cpv);
+  await cp.close();
+
   // 7) 登録が混み合っている（429）
   db.raw.exec("WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 300) INSERT INTO songs (id, read_hash, admin_hash, name, midi, size, sha256, src, created_at) SELECT 'x' || i, 'a', 'b', 'n', x'', 0, 's', 'z', " + Date.now() + " FROM n");
   const r = await newPage();
