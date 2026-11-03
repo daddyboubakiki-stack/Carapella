@@ -59,18 +59,24 @@ const sorted = (a) => JSON.stringify([...a].sort((x, y) => x - y));
   check('和音練習の操作欄が出て、シートは隠れる', st.bar && !st.sheet);
   const saved = await p.evaluate(() => ({ ...CP.saved, mode: S.mode, score: S.score.n, trail: S.trail.length }));
 
-  // 3) お手本＝全パート（ミュートしたパートも鳴る）、合わせる＝自分以外
+  // 3) お手本＝全パートの単音→和音（ミュートしたパートも鳴る）、和音を鳴らす＝自分以外
   await p.evaluate(() => { S.pstate[1].muted = true; });
   let before = await p.evaluate(() => window.__starts.length);
   await p.click('#cpDemo'); await sleep(150);
   st = await p.evaluate((b) => ({ f: window.__starts.slice(b).map((x) => Math.round(x.f)), all: cpSeg().notes.filter((m) => m != null).map((m) => m + curTr()), pressed: document.getElementById('cpDemo').getAttribute('aria-pressed') }), before);
-  check('「お手本」で全パートの音が鳴る（ミュートしたパートも）', sorted(st.f) === sorted(st.all.map(hz)) && st.pressed === 'true', JSON.stringify(st));
-  await p.click('#cpDemo'); await sleep(100);
+  check('「お手本」で全パートの単音と最後の和音が鳴る（ミュートしたパートも）', sorted(st.f) === sorted(st.all.flatMap(m => [hz(m), hz(m)])) && st.pressed === 'true', JSON.stringify(st));
+  before = await p.evaluate(() => window.__starts.length);
+  await p.click('#cpDemo3'); await sleep(100);
+  st = await p.evaluate((b) => { const xs = window.__starts.slice(b), n = cpSeg().notes.filter(m => m != null).length; return { n, at: xs.map(x => +(x.when - xs[0].when).toFixed(3)), one: document.getElementById('cpDemo').getAttribute('aria-pressed'), three: document.getElementById('cpDemo3').getAttribute('aria-pressed') }; }, before);
+  check('3秒のお手本に切り替えると低音から3秒ずつ、最後に和音', st.at.length === st.n * 2 && st.at.every((t, i) => Math.abs(t - (i < st.n ? i * 3 : st.n * 3)) < 0.01) && st.one === 'false' && st.three === 'true', JSON.stringify(st));
+  const demoPair = await p.evaluate(() => ['cpDemo', 'cpDemo3'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right }; }));
+  check('2種類のお手本ボタンは画面内で横並び', demoPair[0].x < demoPair[1].x && Math.abs(demoPair[0].y - demoPair[1].y) < 1 && demoPair.every(r => r.x >= 0 && r.right <= W + 0.5), JSON.stringify(demoPair));
+  await p.click('#cpDemo3'); await sleep(100);
   check('もう一度押すと止まる', (await p.evaluate(() => CP.kind)) === null);
   before = await p.evaluate(() => window.__starts.length);
   await p.click('#cpSing'); await sleep(600);
   st = await p.evaluate((b) => ({ f: window.__starts.slice(b).map((x) => Math.round(x.f)), others: cpSeg().notes.map((m, i) => (i === S.sel || m == null ? null : m + curTr())).filter((m) => m != null), mic: !!document.getElementById('micBtn').getAttribute('aria-pressed') }), before);
-  check('「合わせる」で自分以外のパートだけが鳴る', sorted(st.f) === sorted(st.others.map(hz)), JSON.stringify(st));
+  check('「和音を鳴らす」（旧・合わせる）は自分以外のパートだけが鳴る', sorted(st.f) === sorted(st.others.map(hz)), JSON.stringify(st));
   await p.click('#cpSing'); await sleep(100);
   await p.evaluate(() => { S.pstate[1].muted = false; });
 
@@ -78,12 +84,13 @@ const sorted = (a) => JSON.stringify([...a].sort((x, y) => x - y));
   await p.evaluate(() => { S.pstate.forEach((st, i) => { if (i !== S.sel) st.vol = 0; }); window.__detune = 0; CP.trail = []; });
   if ((await p.getAttribute('#micBtn', 'aria-pressed')) !== 'true') await p.click('#micBtn');
   await sleep(300);
-  await p.click('#cpDemo'); await sleep(2000);
+  const sampleMs = await p.evaluate(() => cpSeg().notes.filter(m => m != null).length * 1000 + 1000);
+  await p.click('#cpDemo'); await sleep(sampleMs);
   st = await p.evaluate(() => ({ ok: CP.trail.filter((x) => x.m != null && x.ok).length, off: CP.trail.filter((x) => x.m != null && x.ok === false).length, diff: document.getElementById('hDiff').textContent }));
   check('ぴったりの声は「合っている」の線になる', st.ok > 20 && st.off < st.ok * 0.1, JSON.stringify(st));
   await p.click('#cpDemo'); await sleep(300);
   await p.evaluate(() => { window.__detune = 100; CP.trail = []; });
-  await p.click('#cpDemo'); await sleep(2000);
+  await p.click('#cpDemo'); await sleep(sampleMs);
   st = await p.evaluate(() => ({ ok: CP.trail.filter((x) => x.m != null && x.ok).length, off: CP.trail.filter((x) => x.m != null && x.ok === false).length }));
   check('半音高い声は「ずれ」の線になる', st.off > 20 && st.ok < st.off * 0.1, JSON.stringify(st));
   await p.evaluate(() => { window.__detune = 0; });

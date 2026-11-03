@@ -37,6 +37,10 @@
 
 ## 限界
 
+お手本の単音→和音・1秒／3秒・予約の取消は、`test:unit` の `chord_model_test.js` でも検査する。これは記録用AudioContextでの予約と取消の検査。
+
+実際のWeb Audioの波形は、アプリを配信する同じサーバーで `/tests/chord-audio.html` を開くと検査できる（OfflineAudioContext。単音の各区間にほかの音が残らない、最後に全音が鳴る、終了後の無音、押し直しで旧予約が復活しない）。実機スピーカー・イヤホンの聞こえ方の検査とは区別する。
+
 - Chromium のみ。iPhoneのSafari・Android実機・Bluetoothイヤホンは確認できません（`docs/device-checklist.md` で人が確かめる）
 - 合成音での確認で、人の声ではありません
 - 曲専用リンクは、手元の SQLite と、手元の Cloudflare の実行環境（wrangler dev）で確かめています。本物の D1（世界のどこからでも届く版）での確認は、公開の設定をした後に `--remote` で行います

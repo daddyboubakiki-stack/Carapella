@@ -1,0 +1,55 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>和音のお手本：Web Audio検証</title>
+<h1>和音のお手本：Web Audio検証</h1><pre id="result">実行中…</pre>
+<script>
+(async () => {
+  const result = document.getElementById('result'), rows = [];
+  const check = (label, ok, detail = '') => { rows.push((ok ? 'PASS ' : 'FAIL ') + label + (detail ? ' ' + detail : '')); result.textContent = rows.join('\n'); if (!ok) throw Error(label); };
+  const html = await (await fetch('../index.html')).text();
+  const section = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b, i); if (i < 0 || j < 0) throw Error(a); return html.slice(i, j); };
+  const sampleRate = 24000;
+  const notes = [{ m: 64, part: 0 }, { m: 48, part: 2 }, { m: 60, part: 1 }];
+  const frequencies = [48, 60, 64].map(m => 440 * 2 ** ((m - 69) / 12));
+  function harness(seconds) {
+    const ctx = new OfflineAudioContext(1, Math.ceil(seconds * sampleRate), sampleRate);
+    const guide = ctx.createGain(); guide.connect(ctx.destination);
+    const A = { ctx, guide, active: new Set(), waves: { soft: ctx.createPeriodicWave(new Float32Array([0, 1]), new Float32Array(2)) } };
+    const S = { pstate: Array.from({ length: 3 }, () => ({ vol: 0.7, tone: 'soft' })) };
+    const src = 'let previewRequest = 0;\n' + section('function playNote(', 'function playClick(') + section('function stopNotes()', '// ===== 再生') + section('const MODEL_CHORD_HOLD', 'function setPick');
+    const api = new Function('A', 'S', 'TONES', 'curTr', 'setTimeout', src + '\nreturn { scheduleChordModel, stopNotes };')(A, S, { soft: { gain: 1 } }, () => 0, () => 0);
+    return { ctx, ...api };
+  }
+  function amplitude(data, f, at) {
+    const n = Math.floor(sampleRate * 0.2), start = Math.floor(at * sampleRate);
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) {
+      const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1)), phase = 2 * Math.PI * f * i / sampleRate;
+      re += data[start + i] * w * Math.cos(phase); im += data[start + i] * w * Math.sin(phase);
+    }
+    return Math.hypot(re, im) / n;
+  }
+  function rms(data, at, seconds = 0.2) {
+    const start = Math.floor(at * sampleRate), n = Math.floor(seconds * sampleRate); let sum = 0;
+    for (let i = start; i < start + n; i++) sum += data[i] ** 2;
+    return Math.sqrt(sum / n);
+  }
+  for (const step of [1, 3]) {
+    const total = 3 * step + 3, h = harness(total + 0.6);
+    h.scheduleChordModel(notes, 0.03, step);
+    const data = (await h.ctx.startRendering()).getChannelData(0);
+    for (let i = 0; i < 3; i++) {
+      const amps = frequencies.map(f => amplitude(data, f, 0.03 + i * step + 0.3));
+      check(step + '秒版：単音' + (i + 1) + 'に前後の音が重ならない', amps[i] > 0.005 && amps.every((a, j) => j === i || a < amps[i] / 20), JSON.stringify(amps.map(a => +a.toFixed(6))));
+    }
+    const full = frequencies.map(f => amplitude(data, f, 0.03 + 3 * step + 0.3));
+    check(step + '秒版：最後は3音が同時に鳴る', full.every(a => a > 0.005));
+    check(step + '秒版：最後の和音は3秒で消える', rms(data, total + 0.2) < 1e-7);
+  }
+  const h = harness(12);
+  h.scheduleChordModel(notes, 0.03, 3); h.stopNotes();
+  h.scheduleChordModel([{ m: 67, part: 0 }, { m: 71, part: 1 }, { m: 74, part: 2 }], 0.03, 1);
+  const data = (await h.ctx.startRendering()).getChannelData(0);
+  check('押し直し：新しいお手本の終了後、旧予約の単音・和音が復活しない', [6.5, 7.5, 9.5, 10.5].every(t => rms(data, t) < 1e-7));
+  check('全Web Audio検証完了', true);
+  result.dataset.status = 'passed';
+})().catch(e => { const r = document.getElementById('result'); r.textContent += '\nERROR ' + e.stack; r.dataset.status = 'failed'; });
+</script></html>

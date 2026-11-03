@@ -175,6 +175,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .picksheet[hidden] { display: none; }
 .picksheet.at-top { top: 6px; bottom: auto; } /* 選んだ音符が下の方にある時は、上に出して音符を隠さない */
 .picksheet > * { flex: none; }
+.audio-pair { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 4px; flex: none; }
 .picksheet .btn { min-height: 34px; padding: 0.2em 0.8em; font-size: 0.85rem; }
 .picksheet .iconbtn { width: 30px; height: 30px; margin-left: auto; }
 @media (max-width: 700px) {
@@ -519,13 +520,23 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
         <button class="iconbtn" id="cpPrev" type="button" aria-label="前の和音"><svg viewBox="0 0 24 24"><path d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z"/></svg></button>
         <span class="cpwhere" id="cpWhere"></span>
         <button class="iconbtn" id="cpNext" type="button" aria-label="次の和音"><svg viewBox="0 0 24 24"><path d="M8.6 18.6 10 20l8-8-8-8-1.4 1.4 6.6 6.6z"/></svg></button>
-        <button class="btn small" id="cpDemo" type="button" aria-pressed="false" title="全パートの和音を伸ばして鳴らします">お手本</button>
-        <button class="btn small" id="cpSing" type="button" aria-pressed="false" title="自分以外のパートを伸ばして鳴らし、マイクで自分の声を線にします">合わせる</button>
+        <div class="audio-pair" role="group" aria-label="和音のお手本">
+          <button class="btn small" id="cpDemo" type="button" aria-pressed="false" title="低い音から1音ずつ1秒鳴らし、最後に全パートの和音を3秒鳴らします">お手本（1秒）</button>
+          <button class="btn small" id="cpDemo3" type="button" aria-pressed="false" title="低い音から1音ずつ3秒鳴らし、最後に全パートの和音を3秒鳴らします">お手本（3秒）</button>
+        </div>
+        <button class="btn small" id="cpSing" type="button" aria-pressed="false" aria-label="和音を鳴らす（自分以外のパート）" title="自分以外のパートを伸ばして鳴らし、マイクで自分の声を線にします">和音を鳴らす</button>
         <button class="btn small cpback" id="cpBack" type="button">戻る</button>
       </div>
       <div class="picksheet" id="pickSheet" role="group" aria-label="選んだ音" hidden>
         <p class="pickmsg" id="pickMsg" hidden><span id="pickMsgText"></span><button class="btn small" id="undoMarkBtn" type="button">取り消す</button></p>
-        <button class="btn small" id="chordBtn" type="button">和音を鳴らす</button>
+        <div class="audio-pair" role="group" aria-label="選んだ音と和音">
+          <button class="btn small" id="noteBtn" type="button" title="選んだ音符だけを1秒鳴らします">この音を鳴らす</button>
+          <button class="btn small" id="chordBtn" type="button" title="選んだ時刻の全パートの和音を同時に3秒鳴らします">和音を鳴らす</button>
+        </div>
+        <div class="audio-pair" role="group" aria-label="選んだ和音のお手本">
+          <button class="btn small" id="modelBtn" type="button" title="低い音から1音ずつ1秒鳴らし、最後に和音を3秒鳴らします">お手本（1秒）</button>
+          <button class="btn small" id="model3Btn" type="button" title="低い音から1音ずつ3秒鳴らし、最後に和音を3秒鳴らします">お手本（3秒）</button>
+        </div>
         <button class="btn small" id="cpBtn" type="button">和音練習</button>
         <button class="btn small" id="markFromBtn" type="button" title="選んだ音から、しおりを始めます">ここから</button>
         <button class="btn small" id="markToBtn" type="button" title="選んだ音まで、しおりを延ばします">ここまで</button>
@@ -546,7 +557,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       <span><svg viewBox="0 0 26 12"><path d="M2 6 L5 2 L8 10 L11 2 L14 10 L17 2 L20 10 L24 4" stroke="var(--off)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>ずれた声</span>
       <span><svg viewBox="0 0 26 12"><path d="M2 7 L10 4 L24 7" stroke="var(--muted)" stroke-width="2" fill="none"/></svg>判定外の声</span>
     </div>
-    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。2本指を横に広げる・つまむとバーの長さ、縦に広げる・つまむと音の間隔が変わります（パソコンはCtrl＋ホイールでバーの長さ、Ctrl＋Shift＋ホイールで音の間隔）。「音域を戻す」で上下の位置と音の間隔が元に戻ります。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、和音を鳴らす・和音練習（その和音を伸ばして自分の声を合わせる）・しおりの始まり／終わりを選べます。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
+    <details class="plot-help"><summary>見方・操作</summary><p id="plotHelpText">グラフの上下移動で音域、左右移動で表示する時刻を変えられます。2本指を横に広げる・つまむとバーの長さ、縦に広げる・つまむと音の間隔が変わります（パソコンはCtrl＋ホイールでバーの長さ、Ctrl＋Shift＋ホイールで音の間隔）。「音域を戻す」で上下の位置と音の間隔が元に戻ります。音楽の再生位置は変わりません。左右に動かすと自動追従が止まり、「今の位置へ」で再開します。上下だけの移動では追従が続きます。ページ全体はグラフの外をなぞってスクロールしてください。止めている時に音符を長押しすると、その音の長さでしおりができます。音符を軽くタップすると、選んだ単音・和音を聴く、お手本を1秒／3秒ずつ聴く、和音練習、しおりの始まり／終わりを選べます。お手本は低い音から重ねずに1音ずつ鳴り、最後に全体の和音が3秒鳴ります。和音練習の「和音を鳴らす」は、自分以外のパートを鳴らします。キーボードの矢印でも表示を移動でき、Homeで追従に戻れます。太いバーが自分の音、淡いバーがほかのパートです。</p></details>
   </section>
 
   <div class="transport" id="transport">
@@ -1000,6 +1011,7 @@ const S = {
 };
 const T = { playing: false, mode: 'live', pos: 0, p0: 0, t0: 0, rate: 1, tr: 0, next: 0, timer: 0, reviewSrc: null, reviewTake: null, cStart: 0, cBeat: 0, cN: 0, end: Infinity };
 const A = { ctx: null, guide: null, pitchGain: null, reviewGain: null, partGains: [], wave: null, active: new Set(), mic: null };
+let previewRequest = 0;
 let R = null;            // 録音中の情報
 let recStarting = false;
 let latTouched = false;
@@ -1143,7 +1155,7 @@ function applyGains() {
   A.partGains.forEach((g, i) => g.gain.setTargetAtTime(partLevel(i), now, 0.02));
   A.guide.gain.setTargetAtTime(S.guideVol, now, 0.02);
 }
-function playNote(m, when, dur, vel, dest, tone) {
+function playNote(m, when, dur, vel, dest, tone, exactEnd = false) {
   const ctx = A.ctx;
   const tn = TONES[tone] || TONES.soft;
   dur = Math.max(dur, 0.04);
@@ -1156,7 +1168,11 @@ function playNote(m, when, dur, vel, dest, tone) {
   g.gain.setValueAtTime(0, when);
   g.gain.linearRampToValueAtTime(peak, when + atk);
   g.gain.setTargetAtTime(peak * 0.7, when + atk, 0.3);
-  g.gain.setTargetAtTime(0, when + dur, 0.025);
+  if (exactEnd) {
+    // 単音のお手本では、次の音が入る前に余韻も消す（通常再生の余韻は従来どおり）。
+    g.gain.setTargetAtTime(0, when + dur - Math.min(0.03, dur / 4), 0.005);
+    g.gain.setValueAtTime(0, when + dur);
+  } else g.gain.setTargetAtTime(0, when + dur, 0.025);
   // 「声」は響きの山（フォルマント）を足す
   const fs = [];
   let last = o;
@@ -1173,7 +1189,7 @@ function playNote(m, when, dur, vel, dest, tone) {
   last.connect(g);
   g.connect(dest);
   o.start(when);
-  o.stop(when + dur + 0.2);
+  o.stop(when + dur + (exactEnd ? 0 : 0.2));
   const node = { o, g };
   A.active.add(node);
   o.onended = () => { A.active.delete(node); try { g.disconnect(); fs.forEach((f) => f.disconnect()); } catch (e) { /* ignore */ } };
@@ -1195,6 +1211,7 @@ function playClick(when, accent) {
   o.onended = () => { A.active.delete(node); try { g.disconnect(); } catch (e) { /* ignore */ } };
 }
 function stopNotes() {
+  previewRequest++; // 音声再開を待っている古い試聴も取り消す
   if (!A.ctx) return;
   const now = A.ctx.currentTime;
   for (const nd of A.active) {
@@ -1689,6 +1706,7 @@ function demoSong() {
 }
 function setSong(song, label, meta) {
   if (T.playing) pause();
+  stopNotes();
   S.song = song;
   S.songBytes = (meta && meta.bytes) || null; // 共有リンクを作るための元のファイル（デモ曲・共有で開いた曲は null）
   S.songVer = (meta && meta.ver) || null;
@@ -2250,25 +2268,57 @@ function chordAt(t) {
   });
   return out;
 }
-// 和音を鳴らす：低い音から1音ずつ重ね、押してから CHORD_TOTAL 秒で全部の音が一緒に鳴り終わる
-// 各パートの音色・音量で（練習の段階やミュートに関係なく、全パート）。押し直すと、鳴っている和音を止めて鳴らし直す
-const CHORD_STEP = 1; // 次の音を重ねるまでの間（秒）
-const CHORD_TOTAL = 10; // 押してから鳴り終わるまで（秒）
+// お手本：低音から単音を順番に鳴らし、最後に全体の和音を3秒。全体10秒の制限は設けない。
+const MODEL_CHORD_HOLD = 3;
+function playPartNote(c, when, dur, exactEnd = false) {
+  const st = S.pstate[c.part], gn = A.ctx.createGain();
+  gn.gain.value = st.vol;
+  gn.connect(A.guide);
+  playNote(c.m + curTr(), when, dur, 100, gn, st.tone, exactEnd);
+  setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, Math.max(0, when + dur + 1 - A.ctx.currentTime) * 1000);
+}
+function scheduleChordModel(notes, now, step) {
+  const ordered = notes.slice().sort((a, b) => a.m - b.m || a.part - b.part);
+  if (!ordered.length) return 0;
+  ordered.forEach((c, i) => playPartNote(c, now + i * step, step, true));
+  const chordStart = now + ordered.length * step;
+  ordered.forEach((c) => playPartNote(c, chordStart, MODEL_CHORD_HOLD, true));
+  return ordered.length * step + MODEL_CHORD_HOLD;
+}
+async function startPreview(schedule) {
+  if (!S.song || T.playing || R || CP.on) return;
+  let request;
+  try {
+    ensureCtx();
+    stopNotes();
+    request = previewRequest;
+    const ctx = A.ctx;
+    if (ctx.state !== 'running') {
+      let timer;
+      try {
+        await Promise.race([ctx.resume(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('resume timeout')), 5000); })]);
+      } finally { clearTimeout(timer); }
+    }
+    if (request !== previewRequest || T.playing || R || CP.on || document.visibilityState === 'hidden') return;
+    if (ctx.state !== 'running') throw new Error('音を再開できませんでした。もう一度押してください。');
+    return schedule(ctx.currentTime + 0.03);
+  } catch (e) {
+    if (request == null || request === previewRequest) say('音を始められませんでした。もう一度押してください。', true);
+  }
+}
+function playPickedNote() {
+  if (!pick) return;
+  const c = { part: pick.part, m: pick.note.m };
+  return startPreview((now) => playPartNote(c, now, 1, true));
+}
+// 選択メニューの「和音を鳴らす」は全パートを同時に鳴らす。押し直すと最初から。
 function playChord(t) {
-  try { ensureCtx(); } catch (e) { say(e.message); return; }
-  stopNotes();
-  const now = A.ctx.currentTime + 0.02;
-  const notes = chordAt(t).sort((a, b) => a.m - b.m || a.part - b.part);
-  // 音が多くて入りきらない時は、最後の音も1秒は伸ばせるように間を詰める
-  const step = notes.length > 1 ? Math.min(CHORD_STEP, (CHORD_TOTAL - 1) / (notes.length - 1)) : 0;
-  notes.forEach((c, i) => {
-    const st = S.pstate[c.part];
-    const gn = A.ctx.createGain();
-    gn.gain.value = st.vol;
-    gn.connect(A.guide);
-    playNote(c.m + curTr(), now + i * step, CHORD_TOTAL - i * step, 100, gn, st.tone);
-    setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (CHORD_TOTAL + 1) * 1000);
-  });
+  const notes = chordAt(t);
+  return startPreview((now) => notes.forEach((c) => playPartNote(c, now, MODEL_CHORD_HOLD, true)));
+}
+function playChordModel(t, step) {
+  const notes = chordAt(t);
+  return startPreview((now) => scheduleChordModel(notes, now, step));
 }
 function setPick(p, msg) {
   pick = p;
@@ -2310,7 +2360,8 @@ function undoMark() {
   view.time = shown; view.follow = false; syncViewUI();
 }
 // ===== 和音練習（一人用）：選んだ時刻の和音を伸ばして鳴らし、自分の声を合わせる =====
-// 「お手本」＝全パート、「合わせる」＝自分以外のパート。練習の段階・ミュートより、このボタンの約束を優先する（音色・音量・移調は引き継ぐ）。
+// 「お手本」＝全パートの単音→和音、「和音を鳴らす」（旧「合わせる」）＝自分以外のパート。
+// 練習の段階・ミュートより、このボタンの約束を優先する（音色・音量・移調は引き継ぐ）。
 // 目標の線はMIDIの平均律。横軸は練習を始めてからの時間（曲の時刻とは別）。
 const CP = { on: false, segs: [], idx: 0, kind: null, pending: null, request: 0, t0: 0, trail: [], saved: null, stopTimer: 0 };
 const CP_HOLD = 30; // 伸ばす長さの上限（秒）
@@ -2341,6 +2392,7 @@ function cpTarget() {
 function enterChord(t) {
   if (!S.song || R) return;
   if (T.playing) pause();
+  stopNotes();
   CP.segs = chordSegments(S.song.parts);
   if (!CP.segs.length) return;
   let i = CP.segs.findIndex((sg) => sg.s <= t && t < sg.e);
@@ -2368,7 +2420,7 @@ function exitChord() {
   syncChordUI();
   kick();
 }
-// 伸ばす音を鳴らす／止める。kind：'demo'＝全パート、'sing'＝自分以外、null＝止める
+// kind：'demo' / 'demo3'＝1秒 / 3秒のお手本、'sing'＝自分以外、null＝止める
 function cpSound(kind) {
   CP.request++; // 戻る・中断・別の操作の後に、古いマイク許可待ちから音を始めない
   CP.pending = null;
@@ -2377,16 +2429,13 @@ function cpSound(kind) {
   CP.kind = kind;
   if (kind) {
     const sg = cpSeg(), now = A.ctx.currentTime + 0.03;
-    sg.notes.forEach((m, i) => {
-      if (m == null || (kind === 'sing' && i === S.sel)) return;
-      const st = S.pstate[i];
-      const gn = A.ctx.createGain();
-      gn.gain.value = st.vol;
-      gn.connect(A.guide);
-      playNote(m + curTr(), now, CP_HOLD, 100, gn, st.tone);
-      setTimeout(() => { try { gn.disconnect(); } catch (e) { /* ignore */ } }, (CP_HOLD + 1) * 1000);
-    });
-    CP.stopTimer = setTimeout(() => { CP.kind = null; syncChordUI(); }, CP_HOLD * 1000);
+    const notes = sg.notes.map((m, part) => ({ m, part })).filter((c) => c.m != null && (kind !== 'sing' || c.part !== S.sel));
+    let duration;
+    if (kind === 'sing') {
+      notes.forEach((c) => playPartNote(c, now, CP_HOLD));
+      duration = CP_HOLD;
+    } else duration = scheduleChordModel(notes, now, kind === 'demo3' ? 3 : 1);
+    CP.stopTimer = setTimeout(() => { CP.kind = null; syncChordUI(); kick(); }, (duration + 0.03) * 1000);
   }
   syncChordUI();
 }
@@ -2453,8 +2502,10 @@ function syncChordUI() {
   $('cpPrev').disabled = CP.idx <= 0;
   $('cpNext').disabled = CP.idx >= CP.segs.length - 1;
   $('cpDemo').setAttribute('aria-pressed', String(CP.kind === 'demo'));
+  $('cpDemo3').setAttribute('aria-pressed', String(CP.kind === 'demo3'));
   $('cpSing').setAttribute('aria-pressed', String(CP.kind === 'sing'));
   $('cpDemo').setAttribute('aria-busy', String(CP.pending === 'demo'));
+  $('cpDemo3').setAttribute('aria-busy', String(CP.pending === 'demo3'));
   $('cpSing').setAttribute('aria-busy', String(CP.pending === 'sing'));
 }
 // 和音練習の画面：目標の音を横線（パートの色、自分は太く）、自分の声を右から左へ流れる線で描く
@@ -3405,7 +3456,10 @@ cv.addEventListener('contextmenu', (e) => e.preventDefault()); // Android の長
 // iPhone の Safari は、2本指の操作を独自の「ジェスチャー」としてページの拡大に使うことがあるので、音程バーの上では止める
 cv.addEventListener('gesturestart', (e) => e.preventDefault());
 cv.addEventListener('gesturechange', (e) => e.preventDefault());
+$('noteBtn').addEventListener('click', playPickedNote);
 $('chordBtn').addEventListener('click', () => { if (pick) playChord(pick.t); });
+$('modelBtn').addEventListener('click', () => { if (pick) playChordModel(pick.t, 1); });
+$('model3Btn').addEventListener('click', () => { if (pick) playChordModel(pick.t, 3); });
 $('markFromBtn').addEventListener('click', () => setMarkEdge('a'));
 $('markToBtn').addEventListener('click', () => setMarkEdge('b'));
 $('undoMarkBtn').addEventListener('click', undoMark);
@@ -3413,6 +3467,7 @@ $('cpBtn').addEventListener('click', () => { if (pick) enterChord(pick.t); });
 $('cpPrev').addEventListener('click', () => cpMove(-1));
 $('cpNext').addEventListener('click', () => cpMove(1));
 $('cpDemo').addEventListener('click', () => cpPress('demo'));
+$('cpDemo3').addEventListener('click', () => cpPress('demo3'));
 $('cpSing').addEventListener('click', () => cpPress('sing'));
 $('cpBack').addEventListener('click', exitChord);
 $('pickClose').addEventListener('click', () => setPick(null));

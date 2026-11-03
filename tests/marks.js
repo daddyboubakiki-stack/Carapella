@@ -7,7 +7,7 @@ fs.mkdirSync(path.join(T, 'tests', 'out'), { recursive: true });
 const src = fs.readFileSync(path.join(T, 'tests/e2e2.js'), 'utf8');
 const HARNESS = eval('(' + src.match(/const HARNESS = (\(\) => \{[\s\S]*?\n\});/)[1] + ')');
 // アプリの中の状態をテストから読めるよう、配信する時だけ window に出す
-const EXPOSE = "Object.assign(window, { S, T, view, loopRange, seekTo, viewTime, displayTime, pixelsPerSecond, viewRange, curTr, fitRange, chordAt, playChord, noteAt, panToTime, GUT });"
+const EXPOSE = "Object.assign(window, { S, T, view, loopRange, seekTo, viewTime, displayTime, pixelsPerSecond, viewRange, curTr, fitRange, chordAt, playChord, playChordModel, noteAt, panToTime, GUT });"
   + " Object.defineProperty(window, 'pick', { get: () => pick }); Object.defineProperty(window, 'press', { get: () => press });";
 const server = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end(fs.readFileSync(path.join(T, 'index.html'), 'utf8').replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, EXPOSE + ' })();</script></body>')); }).listen(0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -126,6 +126,12 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
   await p.mouse.click(n.x, n.y); await sleep(100);
   st = await p.evaluate(() => ({ n: S.marks.length, sheet: !document.getElementById('pickSheet').hidden, pick: pick && pick.t }));
   check('短いタップでシートが出て、しおりは作らない', st.n === 0 && st.sheet && st.pick != null, JSON.stringify(st));
+  let noteBefore = await p.evaluate(() => window.__starts.length);
+  await p.click('#noteBtn'); await sleep(100);
+  st = await p.evaluate((b) => ({ f: window.__starts.slice(b).map(x => Math.round(x.f)), expected: Math.round(440 * Math.pow(2, (pick.note.m + curTr() - 69) / 12)) }), noteBefore);
+  check('「この音を鳴らす」は選んだ音符だけを鳴らす', st.f.length === 1 && st.f[0] === st.expected, JSON.stringify(st));
+  const pair = await p.evaluate(() => ['noteBtn', 'chordBtn', 'modelBtn', 'model3Btn'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom }; }));
+  check('単音は和音の左隣、お手本の1秒と3秒も横並び', pair[0].x < pair[1].x && Math.abs(pair[0].y - pair[1].y) < 1 && pair[2].x < pair[3].x && Math.abs(pair[2].y - pair[3].y) < 1 && pair.every(r => r.x >= 0 && r.right <= W + 0.5), JSON.stringify(pair));
   const before = await p.evaluate(() => window.__starts.length);
   await p.click('#chordBtn'); await sleep(150);
   st = await p.evaluate((b) => {
@@ -138,7 +144,7 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
   }, before);
   check('「和音を鳴らす」で、押した時刻に鳴っている全パートの音が鳴る', st.chord.length >= 1 && JSON.stringify([...st.started].sort()) === JSON.stringify([...st.chord].sort()), JSON.stringify(st));
   await p.keyboard.press('Escape');
-  // 音がいちばん多く重なる時刻で、重ね方を確かめる（1秒ずつ低い音から重ね、押してから10秒で一緒に鳴り終わる）
+  // 同時の和音試聴は3秒で終了。押し直すと前の音を取り消す。
   const before2 = await p.evaluate(() => window.__starts.length);
   st = await p.evaluate((b) => {
     let best = null;
@@ -153,13 +159,25 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
     const t0 = xs[0].when, again = window.__starts.slice(b + best.n);
     return {
       n: best.n, started: xs.map((x) => Math.round(x.f)), gaps: xs.slice(1).map((x, i) => +(x.when - xs[i].when).toFixed(3)),
-      ends: first.slice(-best.n).map((w) => +(w - 0.2 - t0).toFixed(3)), // 先に、前から鳴っていた音を止めた分が入る
+      ends: first.slice(-best.n).map((w) => +(w - t0).toFixed(3)),
       oldStopped: stops.filter((w) => w - t0 < 0.5).length, again: again.length,
     };
   }, before2);
-  check('和音は低い音から1音ずつ重ねて鳴る（1秒ずつ）', st.n >= 3 && st.started.length === st.n && st.started.every((f, i) => i === 0 || st.started[i - 1] <= f) && st.gaps.every((g) => Math.abs(g - 1) < 0.01), JSON.stringify(st));
-  check('全部の音が、押してから10秒で一緒に鳴り終わる', st.ends.length === st.n && st.ends.every((e) => Math.abs(e - 10) < 0.01), JSON.stringify(st.ends));
+  check('「和音を鳴らす」は全パートを同時に鳴らす', st.n >= 3 && st.started.length === st.n && st.gaps.every((g) => Math.abs(g) < 0.01), JSON.stringify(st));
+  check('和音の試聴は3秒で一緒に鳴り終わる', st.ends.length === st.n && st.ends.every((e) => Math.abs(e - 3) < 0.01), JSON.stringify(st.ends));
   check('押し直すと、鳴っている和音を止めて鳴らし直す', st.oldStopped >= st.n && st.again === st.n, JSON.stringify(st));
+  for (const [id, step] of [['modelBtn', 1], ['model3Btn', 3]]) {
+    await p.mouse.click(n.x, n.y); await sleep(80);
+    const b = await p.evaluate(() => window.__starts.length);
+    await p.click('#' + id);
+    const model = await p.evaluate((b) => {
+      const notes = chordAt(pick.t).sort((a, b) => a.m - b.m || a.part - b.part);
+      const xs = window.__starts.slice(b), start = xs[0].when;
+      return { n: notes.length, f: xs.map(x => Math.round(x.f)), at: xs.map(x => +(x.when - start).toFixed(3)), expected: notes.map(c => Math.round(440 * Math.pow(2, (c.m + curTr() - 69) / 12))) };
+    }, b);
+    check('選択メニューのお手本（' + step + '秒）は単音→和音', model.f.length === model.n * 2 && model.f.every((f, i) => f === model.expected[i % model.n]) && model.at.every((t, i) => Math.abs(t - (i < model.n ? i * step : model.n * step)) < 0.01), JSON.stringify(model));
+  }
+  await p.keyboard.press('Escape');
 
   // 7) 何もない所のタップでシートを閉じる（しおりは消さない）
   await p.mouse.move(n.x, n.y); await p.mouse.down(); await sleep(600); await p.mouse.up(); await sleep(100);
