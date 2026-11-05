@@ -15,7 +15,7 @@ for (const link of links) {
 }
 const practiceEnd = html.indexOf('  </div><!-- practice -->');
 const footer = html.indexOf('<footer class="feedback-footer"');
-const settingsEnd = html.lastIndexOf('  </details>\n</div>\n\n<script>');
+const wrapEnd = html.lastIndexOf('</div>\n\n<script>');
 assert.ok(practiceEnd >= 0 && footer > practiceEnd, 'footer must not take space away from piano-roll practice');
-assert.ok(settingsEnd >= 0 && footer < settingsEnd, 'footer stays within the app wrapper');
+assert.ok(wrapEnd >= 0 && footer < wrapEnd, 'footer stays within the app wrapper');
 console.log('PASS: feedback links preserve the practice layout and disclose no referrer');
