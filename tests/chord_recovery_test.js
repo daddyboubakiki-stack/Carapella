@@ -13,7 +13,7 @@ function harness() {
   const T = { playing: false }, S = { live: { midi: 60 } }, document = { visibilityState: 'visible' };
   const log = { stopped: 0, paused: 0, notes: [], messages: [], micCalls: 0 };
   let getMic = async () => { A.mic = {}; };
-  const src = section('function cpSound(kind)', 'function syncChordUI()');
+  const src = section('const MODEL_CHORD_HOLD', 'function setPick') + '\n' + section('function cpSound(kind)', 'function syncChordUI()');
   const api = new Function('CP', 'A', 'T', 'S', 'document', 'stopNotes', 'pause', 'say', 'kick', 'syncChordUI', 'ensureCtx', 'micOn', 'cpSeg', 'playNote', 'curTr', 'CP_HOLD', 'clamp', 'clearTimeout', 'setTimeout', src + '\nreturn { cpPress, cpSound, cpMove, stopForInterruption };')(
     CP, A, T, S, document, () => log.stopped++, () => { log.paused++; T.playing = false; }, m => log.messages.push(m), () => {}, () => {}, () => {},
     async () => { log.micCalls++; await getMic(); }, () => ({ notes: [60, 64] }), m => log.notes.push(m), () => 0, 30,
@@ -45,7 +45,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
   await h.cpPress('demo'); assert.equal(h.CP.kind, null); assert.equal(h.CP.pending, null); assert.equal(h.log.messages.length, 1);
   console.log('PASS: failed audio resume leaves idle buttons and no sound');
 
-  for (const kind of ['demo', 'sing']) {
+  for (const kind of ['demo', 'demo3', 'sing']) {
     h = harness(); h.CP.kind = kind; h.CP.pending = 'sing'; h.A.active.add({});
     const req = h.CP.request;
     h.stopForInterruption('interrupted');
