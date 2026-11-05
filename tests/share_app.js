@@ -109,7 +109,7 @@ let cleanup = async () => {};
 
   // 2b) スマホで共有パネルを閉じたあと、音程バーの高さが元に戻ることを確認する。
   // 共有欄は音程バーより上に出るため、開閉のたびにレイアウトを測り直す必要がある。
-  const mobile = await newPage(390, 780);
+  const mobile = await newPage(390, 1000);
   await mobile.goto(APP);
   await mobile.setInputFiles('#fileIn', midiFile);
   await sleep(250);
