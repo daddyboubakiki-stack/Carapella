@@ -1,9 +1,16 @@
-// 画面を離れても聴くための再生（バックグラウンド再生）を、実際のChromiumで確かめる。
+// 画面を離れても聴くための再生（バックグラウンド再生）を、実際のブラウザで確かめる。
+// 使い方：node tests/background_browser.js [chromium|webkit|iphone]（省略時は chromium）
+// - webkit：Safari と同じエンジン（Linux・パソコン版の WebKit）。npx playwright install webkit（と install-deps webkit）が必要
+// - iphone：WebKit を iPhone 15 の画面・タッチ・ブラウザ名にし、iPhone の Safari と同じく <audio> の音量をページから変えられなくする
+// どれも本物の iPhone の代わりにはならない（画面ロック・別アプリ・マナーモード・ロック画面の表示は実機で確かめる）。
 // - 用意した音声（WAV）の中身：ソロ・練習の段階・音量・キー・テンポ・カウントが、通常の再生と同じ約束で入っているか
 // - 画面が隠れた時の引き継ぎ、戻った時の位置合わせ、ループ、ロック画面の操作、曲の終わり、マイク使用中、断られた時
 // 画面が隠れたことは document.visibilityState を書き換えて知らせる。実機の画面ロック・別アプリ切り替えの代わりにはならない。
 require('fs').mkdirSync(require('path').join(__dirname, 'out'), { recursive: true });
-const { chromium } = require('playwright');
+const { chromium, webkit, devices } = require('playwright');
+const MODE = process.argv[2] || 'chromium';
+if (!['chromium', 'webkit', 'iphone'].includes(MODE)) throw new Error('mode must be chromium, webkit or iphone');
+const ENGINE = MODE === 'chromium' ? chromium : webkit;
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -37,9 +44,12 @@ const INIT = () => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 390, height: 780 } });
+  note('# エンジン：' + MODE);
+  const browser = await ENGINE.launch();
+  const context = await browser.newContext(MODE === 'iphone' ? { ...devices['iPhone 15'] } : { viewport: { width: 390, height: 780 } });
   await context.addInitScript(INIT);
+  // iPhone の Safari は、ページから <audio> の音量を変えられない（常に 1）。その制約を再現する
+  if (MODE === 'iphone') await context.addInitScript(() => Object.defineProperty(HTMLMediaElement.prototype, 'volume', { configurable: true, get() { return 1; }, set() { /* 変えられない */ } }));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -301,7 +311,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     while (performance.now() - t0 < 120) { await new Promise((r) => setTimeout(r, 10)); vols.push(+B.el.volume.toFixed(2)); }
     return { seeks: window.__seeks - s0, muted: B.el.muted, vols };
   });
-  check('隠れる時：位置を飛ばさず、<audio> の音量を0から約0.05秒で上げる', fadeIn.seeks === 0 && !fadeIn.muted && fadeIn.vols[0] === 0 && fadeIn.vols.at(-1) === 1 && fadeIn.vols.some((v) => v > 0 && v < 1), JSON.stringify(fadeIn));
+  if (MODE === 'iphone') check('隠れる時（iPhone相当：音量を変えられない）：位置を飛ばさず、音量はそのまま一瞬で鳴らす', fadeIn.seeks === 0 && !fadeIn.muted && fadeIn.vols.every((v) => v === 1), JSON.stringify(fadeIn));
+  else check('隠れる時：位置を飛ばさず、<audio> の音量を0から約0.05秒で上げる', fadeIn.seeks === 0 && !fadeIn.muted && fadeIn.vols[0] === 0 && fadeIn.vols.at(-1) === 1 && fadeIn.vols.some((v) => v > 0 && v < 1), JSON.stringify(fadeIn));
   await sleep(800);
   const fadeOut = await ev(async () => {
     const { B, T } = window.__t; const x0 = B.el.currentTime;
@@ -317,18 +328,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('一時停止すると <audio> も止まり、消音・音量は元どおり', af.paused && af.muted && af.vol === 1 && !af.fading, JSON.stringify(af));
 
   note('\n## 6. 引き継がない・引き継げない時');
-  await ev(() => { navigator.mediaDevices.getUserMedia = async () => { const { A } = window.__t; return A.ctx.createMediaStreamDestination().stream; }; });
-  await page.click('#micBtn');
-  await page.waitForFunction(() => !!window.__t.A.mic);
-  await page.click('#playBtn');
-  await sleep(400);
-  const mic = await ev(() => ({ el: !window.__t.B.el.paused, status: document.getElementById('bgStatus').textContent }));
-  await ev(() => window.__setHidden(true));
-  const mic2 = await ev(() => ({ mode: window.__t.T.mode, playing: window.__t.T.playing, msg: document.getElementById('msg').textContent }));
-  check('マイクON：音声を回さず、隠れたら従来どおり一時停止して理由を出す', !mic.el && mic.status.includes('マイク') && mic2.mode === 'live' && !mic2.playing && mic2.msg.includes('マイク'), JSON.stringify({ mic, mic2 }));
-  await ev(() => window.__setHidden(false));
-  await page.click('#micBtn');
-  await ready();
+  // テスト用の合成マイク（Web Audio の出力をマイクの代わりに渡す）は、Linux の WebKit では使えない
+  if (MODE === 'chromium') {
+    await ev(() => { navigator.mediaDevices.getUserMedia = async () => { const { A } = window.__t; return A.ctx.createMediaStreamDestination().stream; }; });
+    await page.click('#micBtn');
+    await page.waitForFunction(() => !!window.__t.A.mic);
+    await page.click('#playBtn');
+    await sleep(400);
+    const mic = await ev(() => ({ el: !window.__t.B.el.paused, status: document.getElementById('bgStatus').textContent }));
+    await ev(() => window.__setHidden(true));
+    const mic2 = await ev(() => ({ mode: window.__t.T.mode, playing: window.__t.T.playing, msg: document.getElementById('msg').textContent }));
+    check('マイクON：音声を回さず、隠れたら従来どおり一時停止して理由を出す', !mic.el && mic.status.includes('マイク') && mic2.mode === 'live' && !mic2.playing && mic2.msg.includes('マイク'), JSON.stringify({ mic, mic2 }));
+    await ev(() => window.__setHidden(false));
+    await page.click('#micBtn');
+    await ready();
+  } else note('  （' + MODE + '：テスト用の合成マイクを使えないので、マイクONの項目は実施しない）');
   // 設定を変えた直後に隠れた：完成を待って引き継ぐ
   await page.click('#playBtn');
   await sleep(400);
@@ -362,7 +376,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   note('\n## エラー');
   check('ページのエラーなし', errors.length === 0, errors.join(' / '));
   note(`\n結果：NG ${fails}件`);
-  fs.writeFileSync(path.join(OUT, 'background_browser.txt'), log.join('\n'));
+  fs.writeFileSync(path.join(OUT, 'background_browser' + (MODE === 'chromium' ? '' : '_' + MODE) + '.txt'), log.join('\n'));
   await browser.close();
   server.close();
   process.exitCode = fails ? 1 : 0;

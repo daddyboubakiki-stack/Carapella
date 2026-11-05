@@ -27,6 +27,8 @@ HTTPプレビューで `tests/controls-browser.html` を開いて「検証を開
 
 `node tests/transport_test.js` は今回の音量・再生状態の変更だけをブラウザなしで検証します。実機の画面ロック・バックグラウンド動作の確認を代用するテストではありません。
 
+`npm run test:background:webkit` は同じ確認を Safari と同じエンジン（Linux・パソコン版の WebKit）で、`npm run test:background:iphone` はそれを iPhone 15 の画面・タッチ・ブラウザ名にし、iPhone の Safari と同じく `<audio>` の音量をページから変えられなくして行います。先に `npx playwright install webkit` が必要です（Linux で足りない部品があれば `npx playwright install-deps webkit`）。テスト用の合成マイクは Linux の WebKit で使えないので、マイクONの1項目は Chromium だけで行います。
+
 `node tests/background_test.js`（`test:unit` に含む）と `npm run test:background` は、画面が隠れたことを `document.visibilityState` の書き換えで知らせます。本物の画面ロック・別アプリ切り替えではないので、スマホでの確認は `docs/handoff-controls-2026-11-05.md` の7.6の手順で行います。
 
 `node tests/e2e2.js <名前>` で一部だけ実行できます：
