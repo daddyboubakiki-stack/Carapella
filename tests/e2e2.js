@@ -299,7 +299,7 @@ async function sing(page, { from = 0, secs = 9, part = 0, audible = [true, true,
     await sleep(1000);
     await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
     await sleep(200);
-    check('ほかの画面に切り替わると一時停止する', !(await isPlaying(page)), await text(page, '#msg'));
+    check('マイク使用中にほかの画面に切り替わると一時停止する（聴くだけの時は background_browser.js で確認）', !(await isPlaying(page)), await text(page, '#msg'));
     await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); });
     // 音が外から止められたら一時停止
     await page.click('#playBtn');

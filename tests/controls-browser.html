@@ -17,7 +17,7 @@ frame.onload = () => {
 fetch('../index.html').then(r => r.text()).then(html => {
   const end = html.lastIndexOf('\n})();');
   if (end < 0) throw Error('app closure not found');
-  frame.srcdoc = html.slice(0, end) + '\nwindow.__controlsTest = {S,T,A,CP,play,pause,setSong,demoSong,setMode,selectPart,loopRange,enterChord,exitChord,viewTime,ensureCtx};\n' + html.slice(end);
+  frame.srcdoc = html.slice(0, end) + '\nwindow.__controlsTest = {S,T,A,CP,play,pause,setSong,demoSong,setMode,selectPart,loopRange,enterChord,exitChord,viewTime,ensureCtx,B,bgSig};\n' + html.slice(end);
 }).catch(e => { status.textContent = '読み込み失敗'; result.textContent = e.stack; });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 run.onclick = async () => {
@@ -97,10 +97,20 @@ run.onclick = async () => {
       check(width + '×' + height + '：ボタン44px・重なりなし・横はみ出しなし・文字切れなし', sized && !overlap && fits && labels, JSON.stringify({ sized, overlap, fits, labels, minWidth: Math.min(...rectangles.map(r => r.width)) }));
     }
     frame.width = 390; frame.height = 780; await wait(180);
-    api.S.countIn = false; $('playBtn').click();
+    api.S.countIn = false;
+    for (let i = 0; i < 100 && !(api.B.cur && !api.B.busy && api.B.cur.sig === api.bgSig()); i++) await wait(100);
+    $('playBtn').click(); await wait(300);
     Object.defineProperty(d, 'visibilityState', { value: 'hidden', configurable: true });
     d.dispatchEvent(new w.Event('visibilitychange'));
-    check('既存の画面切替時の停止を保つ（バックグラウンドは次の担当）', !api.T.playing);
+    check('聴くだけの再生は、画面を切り替えても <audio> へ引き継いで続ける', api.T.playing && api.T.mode === 'bg' && !api.B.el.paused && !api.B.el.muted);
+    await wait(400);
+    const elTime = api.B.el.currentTime;
+    Object.defineProperty(d, 'visibilityState', { value: 'visible', configurable: true });
+    d.dispatchEvent(new w.Event('visibilitychange'));
+    check('戻ると同じ位置（Web Audio が鳴り始める0.08秒後の位置）から通常の再生に戻る', api.T.playing && api.T.mode === 'live' && Math.abs(api.T.p0 - elTime - 0.08) < 0.05);
+    await wait(250);
+    check('戻った後、<audio> は消音に戻る', api.B.el.muted && !api.B.fading);
+    $('playBtn').click();
     delete d.visibilityState;
     $('rewBtn').click(); api.setMode(1);
     status.textContent = rows.length + '項目 PASS'; result.dataset.status = 'passed'; document.getElementById('logs').open = false;

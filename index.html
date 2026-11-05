@@ -240,6 +240,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .transport-help h3 { margin: 16px 0 4px; font-size: 0.9rem; }
 .transport-help p { margin: 0; font-size: 0.85rem; }
 .transport-help .iconbtn { width: 44px; height: 44px; flex: none; }
+.transport-help .bg-status { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--paper); color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
 .seekbox { flex: 1 1 180px; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .seekbox input { flex: 1; min-width: 0; }
 .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
@@ -653,7 +654,11 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <p>ヘッドホンのボタンを押すたびに、自分のパートだけ聴く／元の音に戻す、を切り替えます。再生中にも使えます。表示や練習の段階は変わりません。③④や自分のミュート中でも自分のガイドを確認できます。パート音量とガイド音量はそのまま使うので、0%では鳴りません。マイクで拾った声をイヤホンへ返す機能ではありません。</p>
     <h3>送り・戻しとループ</h3>
     <p>「10」の矢印は、曲の再生位置を10秒ずつ動かします。「末尾へ」は曲の最後で止まります。ループは、初めは曲全体を繰り返します。「区間指定」で小節を選ぶか、音符の長押しでしおりを作ると、その範囲を繰り返します。ループを切っても指定範囲は残ります。区間の外へ移動すると、ループはオフになります。</p>
+    <h3>画面を切り替えても聴く（試験中）</h3>
+    <p>マイクと録音を使っていない時は、再生中にほかのアプリへ切り替えたり画面を消したりしても、同じ設定（自分だけ・練習の段階・音量・音色・テンポ・キー・ループ）のまま音が続くようにしています。そのため、設定を変えると数秒かけて端末の中で音声を作り直します。戻ると、聴いていた位置から画面の再生に戻ります。区間・しおりのループ中に画面を離れると、初めの設定ではループだけを止めて、曲の終わりまで流します（区間としおりは残ります）。画面を離れても区間を繰り返したい時は「練習の設定」で変えられます。ロック画面では再生・一時停止と10秒の送り・戻しができます。端末やブラウザによっては止まることがあります。</p>
+    <p class="bg-status" id="bgStatus"></p>
   </dialog>
+  <audio id="bgAudio" preload="auto" hidden></audio>
 
   <details class="box" id="partMix">
     <summary>パートごとの音量・音色・色</summary>
@@ -689,6 +694,9 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="countIn" checked><span><b>再生の前にカウントを鳴らす</b><br><span class="help">再生・録音・区間リピートのたびに、1小節分のカウントを鳴らします。③④では、このあいだに自分のパートの最初の音も鳴ります。</span></span></label>
+      </div>
+      <div class="set">
+        <label class="check"><input type="checkbox" id="bgRelease" checked><span><b>画面を離れたら、区間ループを止めて曲の終わりまで聴く</b><br><span class="help">区間・しおりのループ中に、ほかのアプリへ切り替えたり画面を消したりした時の動きです。オンでは、ループだけを止めて、聴いていた位置から曲の終わりまで流します（区間としおりは残ります。戻っても自動では繰り返しません）。オフでは、画面を離れている間も区間を繰り返します（ロック画面の10秒送り・戻しは区間の中だけ）。全曲ループは、どちらでも続きます。</span></span></label>
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="octFree"><span><b>オクターブ違いも正解にする</b><br><span class="help">男声が女声パートを（またはその逆を）練習する時に。声の線は目標と同じオクターブに移して表示します。</span></span></label>
@@ -1045,7 +1053,7 @@ const S = {
   guideVol: 0.8, rate: 1, transpose: 0,
   tol: 50, sensitivity: 'medium', octaveFree: false, showOthers: true, naming: 'en', ec: false, latMs: 80, zoom: 140,
   trail: [], score: { n: 0, ok: 0 }, live: null, level: 0, takes: [], takeNo: 0,
-  mode: 1, solo: false, countIn: true, loop: { on: false, scope: 'all', a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
+  mode: 1, solo: false, countIn: true, bgRelease: true, loop: { on: false, scope: 'all', a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
 };
 const T = { playing: false, mode: 'live', pos: 0, p0: 0, t0: 0, rate: 1, tr: 0, next: 0, timer: 0, reviewSrc: null, reviewTake: null, cStart: 0, cBeat: 0, cN: 0, end: Infinity };
 const A = { ctx: null, guide: null, pitchGain: null, reviewGain: null, partGains: [], wave: null, active: new Set(), mic: null };
@@ -1083,7 +1091,7 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}') || {}; } catch (e) { return {}; }
 }
 function savePrefs() {
-  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, vZoom: view.verticalZoom, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
+  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, vZoom: view.verticalZoom, ec: S.ec, countIn: S.countIn, bgRelease: S.bgRelease, mode: S.mode, partName: S.partName };
   if (latTouched) p.latMs = S.latMs;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 記憶できなくても練習はできる */ }
 }
@@ -1108,35 +1116,15 @@ function ensureCtx() {
     const ctx = new AC();
     A.ctx = ctx;
     // 電話・ほかのアプリの音などで止められたら、一時停止して位置を保つ
+    // （画面を離れて <audio> の再生へ引き継いだ後は、Web Audio が止められても音楽は止めない）
     ctx.addEventListener('statechange', () => {
-      if (ctx.state !== 'running' && (T.playing || (CP.on && CP.kind))) {
+      if (ctx.state !== 'running' && ((T.playing && T.mode !== 'bg') || (CP.on && CP.kind))) {
         stopForInterruption('音が止められたので一時停止しました。使いたいボタンをもう一度押してください。');
       }
     });
-    A.guide = ctx.createGain();
-    A.guide.gain.value = S.guideVol;
-    // パートの音量を150%まで上げて和音が重なっても音が割れないよう、出口で大きすぎる音だけを抑える
-    A.limiter = ctx.createDynamicsCompressor();
-    A.limiter.threshold.value = -3;
-    A.limiter.knee.value = 0;
-    A.limiter.ratio.value = 20;
-    A.limiter.attack.value = 0.002;
-    A.limiter.release.value = 0.1;
-    A.guide.connect(A.limiter);
-    A.limiter.connect(ctx.destination);
-    A.pitchGain = ctx.createGain();
-    A.pitchGain.connect(A.guide);
-    A.clickGain = ctx.createGain();
-    A.clickGain.gain.value = 0.9;
-    A.clickGain.connect(A.guide);
+    Object.assign(A, mixerGraph(ctx, S.guideVol));
     A.reviewGain = ctx.createGain();
     A.reviewGain.connect(ctx.destination);
-    // 音色ごとの波の形（倍音の組み合わせ）
-    A.waves = {};
-    for (const [k, tn] of Object.entries(TONES)) {
-      const amps = [0, ...tn.amps];
-      A.waves[k] = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
-    }
     buildPartGains();
     if (!latTouched) {
       // 出力の遅れ（端末が報告する値）＋マイク入力と解析窓の分のおおよその見積もり
@@ -1148,6 +1136,32 @@ function ensureCtx() {
   }
   // iPhone では 'interrupted'（中断）という状態もあるので、running 以外なら再開を試みる
   if (A.ctx.state !== 'running') { try { const r = A.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ } }
+}
+// ガイド全体の音量 → 出口のリミッター → スピーカー。通常の再生と、画面を離れても聴くための音声づくり（OfflineAudioContext）で同じ形を使う。
+function mixerGraph(ctx, guideVol) {
+  const guide = ctx.createGain();
+  guide.gain.value = guideVol;
+  // パートの音量を150%まで上げて和音が重なっても音が割れないよう、出口で大きすぎる音だけを抑える
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.1;
+  guide.connect(limiter);
+  limiter.connect(ctx.destination);
+  const pitchGain = ctx.createGain();
+  pitchGain.connect(guide);
+  const clickGain = ctx.createGain();
+  clickGain.gain.value = 0.9;
+  clickGain.connect(guide);
+  // 音色ごとの波の形（倍音の組み合わせ）
+  const waves = {};
+  for (const [k, tn] of Object.entries(TONES)) {
+    const amps = [0, ...tn.amps];
+    waves[k] = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
+  }
+  return { guide, limiter, pitchGain, clickGain, waves };
 }
 // パートの色：MIDIのパート順に リード赤・1st橙・2nd青・3rd緑・ベース紫、6つ目からはボイパ等として灰色
 const PART_COLORS = ['#E5484D', '#F08C2E', '#3B82F6', '#2FA56A', '#8E5BD9'];
@@ -1187,6 +1201,7 @@ function syncSoloUI() {
   $('soloBtn').setAttribute('aria-pressed', String(S.solo));
   $('soloBtn').setAttribute('aria-label', '自分のパートだけ聴く（現在' + (S.solo ? 'オン' : 'オフ') + '）');
   $('soloBtn').disabled = !S.song || CP.on;
+  bgRefresh();
 }
 function setSolo(on) {
   if (!S.song || CP.on) return;
@@ -1205,17 +1220,23 @@ function buildPartGains() {
   }) : [];
 }
 function applyGains() {
+  bgRefresh(); // 画面を離れた時に鳴らす音声も、同じ音量で作り直す
   if (!A.ctx) return;
   const now = A.ctx.currentTime;
   A.partGains.forEach((g, i) => g.gain.setTargetAtTime(partLevel(i), now, 0.02));
   A.guide.gain.setTargetAtTime(S.guideVol, now, 0.02);
 }
 function playNote(m, when, dur, vel, dest, tone, exactEnd = false) {
-  const ctx = A.ctx;
+  const node = noteVoice(A.ctx, A.waves, m, when, dur, vel, dest, tone, exactEnd);
+  A.active.add(node);
+  node.o.onended = () => { A.active.delete(node); try { node.g.disconnect(); node.fs.forEach((f) => f.disconnect()); } catch (e) { /* ignore */ } };
+}
+// 1音分の部品（発振器・音量の形・音色のフィルター）。通常の再生と、画面を離れても聴くための音声づくりで共通。
+function noteVoice(ctx, waves, m, when, dur, vel, dest, tone, exactEnd = false) {
   const tn = TONES[tone] || TONES.soft;
   dur = Math.max(dur, 0.04);
   const o = ctx.createOscillator();
-  o.setPeriodicWave(A.waves[tone] || A.waves.soft);
+  o.setPeriodicWave(waves[tone] || waves.soft);
   o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
   const g = ctx.createGain();
   const peak = 0.22 * tn.gain * (0.45 + 0.55 * (vel / 127));
@@ -1245,12 +1266,14 @@ function playNote(m, when, dur, vel, dest, tone, exactEnd = false) {
   g.connect(dest);
   o.start(when);
   o.stop(when + dur + (exactEnd ? 0 : 0.2));
-  const node = { o, g };
-  A.active.add(node);
-  o.onended = () => { A.active.delete(node); try { g.disconnect(); fs.forEach((f) => f.disconnect()); } catch (e) { /* ignore */ } };
+  return { o, g, fs };
 }
 function playClick(when, accent) {
-  const ctx = A.ctx;
+  const node = clickVoice(A.ctx, when, accent, A.clickGain);
+  A.active.add(node);
+  node.o.onended = () => { A.active.delete(node); try { node.g.disconnect(); } catch (e) { /* ignore */ } };
+}
+function clickVoice(ctx, when, accent, dest) {
   const o = ctx.createOscillator();
   o.frequency.value = accent ? 1760 : 1320;
   const g = ctx.createGain();
@@ -1258,12 +1281,10 @@ function playClick(when, accent) {
   g.gain.linearRampToValueAtTime(accent ? 0.35 : 0.22, when + 0.003);
   g.gain.setTargetAtTime(0, when + 0.01, 0.018);
   o.connect(g);
-  g.connect(A.clickGain);
+  g.connect(dest);
   o.start(when);
   o.stop(when + 0.12);
-  const node = { o, g };
-  A.active.add(node);
-  o.onended = () => { A.active.delete(node); try { g.disconnect(); } catch (e) { /* ignore */ } };
+  return { o, g };
 }
 function stopNotes() {
   previewRequest++; // 音声再開を待っている古い試聴も取り消す
@@ -1279,12 +1300,14 @@ function stopNotes() {
 }
 
 // ===== 再生 =====
-function songNow() { return T.p0 + (A.ctx.currentTime - T.t0) * T.rate; }
+// 画面を離れて <audio> の再生へ引き継いでいる間（T.mode === 'bg'）は、<audio> の再生位置が曲の時刻になる
+function songNow() { return T.mode === 'bg' ? bgSongTime() : T.p0 + (A.ctx.currentTime - T.t0) * T.rate; }
 function viewTime() {
+  if (T.mode === 'bg') return bgSongTime();
   if (!T.playing) return T.pos;
   return Math.max(T.p0, T.p0 + (A.ctx.currentTime - outLat() - T.t0) * T.rate);
 }
-function voiceTime() { return T.p0 + (A.ctx.currentTime - S.latMs / 1000 - T.t0) * T.rate; }
+function voiceTime() { return T.mode === 'bg' ? bgSongTime() : T.p0 + (A.ctx.currentTime - S.latMs / 1000 - T.t0) * T.rate; }
 // ===== 小節・区間・カウント =====
 function barIndexAt(t) {
   return clamp(lowerBound(S.song.bars, t + 1e-6, 't') - 1, 0, S.song.bars.length - 1);
@@ -1327,7 +1350,7 @@ function startPos() {
 const LOOP_TAIL = 0.25; // 区間の終わりで、最後の音の余韻を少し待ってから戻る
 
 function schedule() {
-  if (!T.playing) return;
+  if (!T.playing || T.mode === 'bg') return;
   const ev = S.events, ctx = A.ctx;
   const limit = Math.min(T.end, T.p0 + (ctx.currentTime + 0.35 - T.t0) * T.rate);
   while (T.next < ev.length && ev[T.next].s < limit) {
@@ -1401,6 +1424,7 @@ function play(p, take, opts) {
   keepAwake(true);
   syncTransportUI();
   renderTakes();
+  bgShadow(); // 画面を離れた時に引き継げるよう、用意した音声を消音で回しておく
   kick();
 }
 // 練習中に画面が消えないようにする（対応していない端末では何もしない）
@@ -1436,8 +1460,10 @@ function stopReviewSrc() {
   if (s) { try { s.stop(); } catch (e) { /* ignore */ } }
 }
 function pause() {
+  if (T.mode === 'bg' && !T.playing) { bgSettle(); return; } // 裏で一時停止していた <audio> の位置を引き取る
   if (!T.playing) return;
   T.pos = clamp(Math.max(T.p0, songNow()), 0, S.song.duration); // カウント中に止めたら、歌い出しの位置に戻す
+  if (T.mode === 'bg') { B.used = null; B.released = false; B.el.muted = true; } // 画面を離れている間の再生を止めた
   T.playing = false;
   T.cN = 0;
   clearInterval(T.timer);
@@ -1450,6 +1476,7 @@ function pause() {
   keepAwake(false);
   syncTransportUI();
   renderTakes();
+  bgShadow(); // 止めたら <audio> も止める
   kick();
 }
 function togglePlay() {
@@ -1497,6 +1524,473 @@ function giveStartNote() {
   const m = n.m + curTr();
   playNote(m, A.ctx.currentTime + 0.02, 1.2, 100, A.pitchGain, S.pstate[S.sel].tone);
   say(part.name + 'の音：' + noteName(m), true);
+}
+
+// ===== 画面を切り替えても聴き続ける（バックグラウンド再生） =====
+// 前面では今までどおり Web Audio で鳴らす（ソロや音量をその場で切り替え、マイクの判定と時刻を合わせるため）。
+// 画面が隠れると JavaScript のタイマーが止まったり遅れたりするので、0.35秒先までを予約する方式では鳴らし続けられない。
+// そこで、今の設定と同じ音を端末の中で音声ファイル（WAV）にしておき、画面が隠れた瞬間に <audio> の再生へ引き継ぐ。
+// 前面へ戻ったら、<audio> の再生位置から Web Audio の再生に戻す（譜面と再生位置を合わせる）。
+// 成り立たなくなる所：マイクON・録音中・聴き返し中・和音練習中は引き継がず、従来どおり一時停止する。
+// 設定を変えた直後は音声を作り直す数秒があり、その間に画面を離れると完成を待って引き継ぐ（それまで止められたら一時停止のまま）。
+const BG_SR = 22050;         // 音声ファイルの標本化周波数（ガイド音には足りる。容量と作る時間を抑える）
+const BG_MAX_SEC = 15 * 60;  // テンポを反映した長さがこれを超える場合は作らない（端末のメモリを守る）
+const BG_WAIT_MS = 600;      // 設定を変えてから作り始めるまで待つ（音量を動かしている途中で何度も作らない）
+// 切り替えの瞬間の「プツッ」と隙間を減らす：<audio> の音量を短く上げ下げし、Web Audio と少し重ねる。
+// 成り立たなくなる所：iPhone の Safari はページから <audio> の音量を変えられないので、音量は一瞬で切り替わる。
+const BG_FADE = 0.04;        // <audio> の音量を上げ下げする長さ（秒）
+const BG_LEAD = 0.08;        // play() が Web Audio を鳴らし始めるまでの時間（T.t0 = 今 + 0.08秒）
+const B = {
+  el: null, src: '', silent: '', songId: 0,
+  cur: null,    // 今の設定に合わせて最後に用意した音声：{ sig, plan, url, ms }
+  used: null,   // 画面を離れている間に鳴らしている音声
+  cache: [],    // 直近の音声（ループのオン／オフを行き来しても作り直さない）
+  busy: false, timer: 0, pending: false, fail: null, seekTok: 0, retTok: 0,
+  released: false, // 画面を離れた時に区間ループを止めた（戻った時に知らせる）
+  fade: 0, fading: false, canVol: null, syncAt: 0, // 音量の上げ下げと、消音中の <audio> の位置合わせ
+  last: '',     // 直前の引き継ぎの記録（「？」の中に出す。実機で確かめる時の手がかり）
+};
+// 引き継げない理由（引き継げる時は空文字）
+function bgBlocked() {
+  if (!S.song) return '曲を開くと準備します';
+  if (!B.el || !(window.OfflineAudioContext || window.webkitOfflineAudioContext) || !B.el.canPlayType('audio/wav')) return 'このブラウザでは使えません';
+  if (A.mic) return 'マイクがオンの間は使いません（画面を切り替えると一時停止します）';
+  if (R || recStarting) return '録音中は使いません';
+  if (CP.on) return '和音練習中は使いません';
+  if (T.mode === 'review') return '録音の聴き返し中は使いません';
+  return '';
+}
+// 今の設定で作る音声の中身。ソロ・練習の段階・ミュート・音量は、通常の再生と同じ partLevel() の値を使う。
+function bgPlan() {
+  const rate = S.rate;
+  const levels = S.song.parts.map((_, i) => Math.round(partLevel(i) * 1e4) / 1e4);
+  const plan = { song: B.songId, rate, tr: S.transpose, guide: S.guideVol, levels, tones: S.pstate.map((st, i) => (levels[i] > 0 ? st.tone : null)), loop: null, pre: 0, lead: 0, beat: 0, n: 0, own: null };
+  // 区間・しおりのループは、設定（初めはオン）で画面を離れた時に止めるので、曲全体の音声を用意しておく。全曲ループはそのまま回す。
+  if (looping() && !(sectionLooping() && S.bgRelease)) {
+    // ループは、通常の再生と同じく「間（0.1秒）→カウント→区間→余韻」を1周として、<audio> の繰り返しで回す
+    const [a, b] = loopRange();
+    plan.loop = [a, b];
+    plan.pre = S.countIn ? 0.1 : 0.08;
+    if (S.countIn) {
+      const c = countParams(a);
+      plan.beat = c.beat / rate;
+      plan.n = c.n;
+      plan.lead = c.n * plan.beat;
+      if (MODES[S.mode].own === 0) { // ③④はカウント中に自分の最初の音
+        const x = S.song.parts[S.sel].notes.find((nt) => nt.e > a + 0.01);
+        if (x) plan.own = { m: x.m, tone: S.pstate[S.sel].tone };
+      }
+    }
+    plan.sec = plan.pre + plan.lead + (b - a) / rate + LOOP_TAIL;
+  } else plan.sec = S.song.duration / rate + 0.5;
+  return plan;
+}
+const bgSig = () => (S.song ? JSON.stringify(bgPlan()) : '');
+// 曲の時刻 ⇔ 音声ファイルの時刻
+function bgFileTime(plan, t) {
+  if (plan.loop) { const [a, b] = plan.loop; return plan.pre + plan.lead + clamp(t - a, 0, b - a) / plan.rate; }
+  return clamp(t, 0, S.song.duration) / plan.rate;
+}
+function bgSongTimeAt(plan, x) {
+  if (plan.loop) { const [a, b] = plan.loop; return clamp(a + (x - plan.pre - plan.lead) * plan.rate, a, b); }
+  return clamp(x * plan.rate, 0, S.song.duration);
+}
+function bgSongTime() { return B.used && B.el ? bgSongTimeAt(B.used.plan, B.el.currentTime) : T.pos; }
+// 16bit・モノラルのWAV（PR #12 の試作の変換をもとにした）
+function wavBlob(samples, rate) {
+  const n = samples.length, bytes = new ArrayBuffer(44 + n * 2), d = new DataView(bytes);
+  const str = (p, x) => { for (let i = 0; i < x.length; i++) d.setUint8(p + i, x.charCodeAt(i)); };
+  str(0, 'RIFF'); d.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, rate, true); d.setUint32(28, rate * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true);
+  str(36, 'data'); d.setUint32(40, n * 2, true);
+  const pcm = new Int16Array(bytes, 44, n);
+  for (let i = 0; i < n; i++) { const v = samples[i] > 1 ? 1 : samples[i] < -1 ? -1 : samples[i]; pcm[i] = v < 0 ? v * 32768 : v * 32767; }
+  return new Blob([bytes], { type: 'audio/wav' });
+}
+// 通常の再生と同じ部品（mixerGraph・noteVoice・clickVoice）で、1曲分（ループなら1周分）を端末の中で録音する
+async function bgRender(plan) {
+  const buf = await bgRenderOnce(plan, true).catch((e) => {
+    if (e && e.name === 'StepFailed') return bgRenderOnce(plan, false); // 途中で止められない端末では、全部を並べて作り直す
+    throw e;
+  });
+  return wavBlob(buf.getChannelData(0), buf.sampleRate);
+}
+async function bgRenderOnce(plan, stepwise) {
+  const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const ctx = new Off(1, Math.max(1, Math.ceil(plan.sec * BG_SR)), BG_SR);
+  const mix = mixerGraph(ctx, plan.guide);
+  const gains = plan.levels.map((lv) => { const g = ctx.createGain(); g.gain.value = lv; g.connect(mix.guide); return g; });
+  const { rate, tr } = plan;
+  const jobs = []; // 鳴らす音：[始まり, 長さ, 音] （始まりはファイルの時刻）
+  if (plan.loop) {
+    const [a, b] = plan.loop, t0 = plan.pre + plan.lead;
+    for (let k = 0; k < plan.n; k++) clickVoice(ctx, plan.pre + k * plan.beat, k === 0, mix.clickGain);
+    if (plan.own) noteVoice(ctx, mix.waves, plan.own.m + tr, plan.pre, Math.max(0.4, plan.lead - plan.beat), 100, mix.pitchGain, plan.own.tone);
+    for (const e of S.events) {
+      if (e.s >= b) break;
+      if (!(plan.levels[e.part] > 0)) continue;
+      if (e.s < a) { if (e.e > a + 0.03) jobs.push([t0, (Math.min(e.e, b) - a) / rate, e]); } // 区間の前から伸びている音
+      else jobs.push([t0 + (e.s - a) / rate, (Math.min(e.e, b) - e.s) / rate, e]);
+    }
+  } else {
+    for (const e of S.events) if (plan.levels[e.part] > 0) jobs.push([e.s / rate, (e.e - e.s) / rate, e]);
+  }
+  // 全部の音を最初に並べると、鳴っていない音の部品も毎回計算されて非常に遅い（5分・3000音で1分以上）。
+  // そこで、作る途中を2秒ごとに一時停止して、次の2秒に始まる音だけを足し、鳴り終わった音を外す。
+  const STEP = 2, live = [];
+  let next = 0, failed = false;
+  const addUntil = (until) => {
+    while (next < jobs.length && jobs[next][0] < until) {
+      const [when, dur, e] = jobs[next++];
+      const v = noteVoice(ctx, mix.waves, e.m + tr, when, dur, e.v, gains[e.part], plan.tones[e.part]);
+      v.end = when + Math.max(dur, 0.04) + 0.3;
+      live.push(v);
+    }
+  };
+  const sweep = () => {
+    for (let i = live.length - 1; i >= 0; i--) {
+      const v = live[i];
+      if (v.end > ctx.currentTime) continue;
+      try { v.o.disconnect(); v.g.disconnect(); v.fs.forEach((f) => f.disconnect()); } catch (err) { /* ignore */ }
+      live.splice(i, 1);
+    }
+  };
+  if (stepwise && typeof ctx.suspend === 'function' && jobs.length > 64) {
+    addUntil(STEP);
+    for (let k = 1; k * STEP < plan.sec - 0.05; k++) {
+      let r;
+      try { r = ctx.suspend(k * STEP); } catch (e) { failed = true; break; }
+      r.then(() => { sweep(); addUntil((k + 1) * STEP); ctx.resume(); }, () => { failed = true; });
+    }
+  } else addUntil(Infinity);
+  const buf = await new Promise((resolve, reject) => {
+    ctx.oncomplete = (ev) => resolve(ev.renderedBuffer); // 古いSafariは Promise を返さない
+    const r = ctx.startRendering();
+    if (r && r.then) r.then(resolve, reject);
+  });
+  // 一時停止できなかった区切りがあると、音が遅れて入る。その時は作り直す。
+  if (failed || (next < jobs.length && jobs[next][0] < plan.sec)) { const e = new Error('step'); e.name = 'StepFailed'; throw e; }
+  return buf;
+}
+// 設定が変わったかもしれない時に呼ぶ（軽い。実際に作るのは少し待ってから）
+function bgRefresh() {
+  if (!B.el || T.mode === 'bg') return;
+  clearTimeout(B.timer);
+  B.timer = S.song ? setTimeout(bgMaybeRender, BG_WAIT_MS) : 0;
+  bgShadow();
+  bgSyncStatus();
+}
+async function bgMaybeRender() {
+  B.timer = 0;
+  if (B.busy || bgBlocked() || T.mode === 'bg' || (document.visibilityState === 'hidden' && !B.pending)) { bgSyncStatus(); return; }
+  const plan = bgPlan(), sig = JSON.stringify(plan);
+  if (B.cur && B.cur.sig === sig) { bgShadow(); bgSyncStatus(); return; }
+  const hit = B.cache.find((x) => x.sig === sig);
+  if (hit) { bgUse(hit); return; }
+  if (B.fail && B.fail.sig === sig) { bgGiveUp(); return; } // 作れない設定（長すぎる・失敗した）
+  if (plan.sec > BG_MAX_SEC) { B.fail = { sig, text: 'テンポを反映した長さが15分を超えるため使いません' }; bgGiveUp(); return; }
+  B.busy = true;
+  bgSyncStatus();
+  const songId = B.songId, t = performance.now();
+  try {
+    const blob = await bgRender(plan);
+    if (songId !== B.songId) return; // 途中で曲が変わった
+    const item = { sig, plan, url: URL.createObjectURL(blob), ms: Math.round(performance.now() - t) };
+    B.cache.unshift(item);
+    while (B.cache.length > 2) {
+      let i = B.cache.length - 1;
+      while (i > 0 && (B.cache[i] === B.cur || B.cache[i] === B.used)) i--;
+      if (i <= 0) break;
+      URL.revokeObjectURL(B.cache.splice(i, 1)[0].url);
+    }
+    if (sig === bgSig()) bgUse(item);
+  } catch (e) {
+    if (songId === B.songId) { B.fail = { sig, text: '音声を作れませんでした（' + ((e && e.name) || 'Error') + '）' }; bgGiveUp(); }
+  } finally {
+    B.busy = false;
+    // 作っている間に設定や曲が変わっていたら、今の設定で作り直す
+    if (S.song && T.mode !== 'bg' && (!B.cur || B.cur.sig !== bgSig()) && !(B.fail && B.fail.sig === bgSig())) bgRefresh();
+    bgSyncStatus();
+  }
+}
+// 完成を待っていた引き継ぎを、作れなかったので諦める
+function bgGiveUp() {
+  if (!B.pending) { bgSyncStatus(); return; }
+  B.pending = false;
+  if (T.playing && T.mode === 'live') stopForInterruption('ほかの画面に切り替わったので一時停止しました。');
+  bgLog('音声を用意できず、一時停止しました');
+}
+function bgUse(item) {
+  B.cur = item;
+  if (B.pending && document.visibilityState === 'hidden') {
+    B.pending = false;
+    if (bgHandoff() !== 'ok' && T.playing && T.mode === 'live') stopForInterruption('ほかの画面に切り替わったので一時停止しました。');
+    return;
+  }
+  bgShadow();
+  bgSyncStatus();
+}
+function bgSetSrc(url) {
+  if (B.src === url) return;
+  B.src = url;
+  B.el.src = url;
+}
+function bgSeekEl(x) {
+  const el = B.el, tok = ++B.seekTok;
+  const go = () => { if (tok === B.seekTok) { try { el.currentTime = Math.max(0, x); } catch (e) { /* 読み込み前は下で再設定 */ } } };
+  if (el.readyState >= 1) go(); else el.addEventListener('loadedmetadata', go, { once: true });
+}
+function bgPlayEl(why) {
+  let r;
+  try { r = B.el.play(); } catch (e) { bgPlayFailed(why, e); return; }
+  if (r && r.catch) r.catch((e) => bgPlayFailed(why, e));
+}
+function bgPlayFailed(why, e) {
+  const name = (e && e.name) || 'Error';
+  if (name === 'AbortError') return; // 止めた・入れ替えた時の取り消し
+  if (why === 'handoff' && T.mode === 'bg') {
+    // 端末が裏での再生を断った：従来どおりの一時停止にする
+    const t = bgSongTime();
+    B.el.muted = true;
+    B.used = null;
+    T.mode = 'live';
+    T.playing = false;
+    T.pos = t;
+    if (B.released) { S.loop.on = true; B.released = false; } // 引き継げなかったので、区間ループは止めずに元へ戻す
+    syncTransportUI();
+    say('ほかの画面に切り替わったので一時停止しました（裏で鳴らし続けることを端末に断られました）。');
+    bgLog('引き継ぎを断られ、' + fmt(t) + ' で一時停止しました（' + name + '）');
+  } else if (why !== 'shadow') bgLog('再生を断られました（' + name + '）');
+}
+// 前面で再生している間、用意した音声を消音で回しておく。
+// iPhoneでは、画面に触れた操作の中で一度 <audio> を再生しておかないと、後から（画面を離れた時に）鳴らせないため。
+// 位置は引き継ぐ瞬間に合わせるので、ここでは同期しない。
+function bgShadow() {
+  const el = B.el;
+  if (!el || T.mode === 'bg') return;
+  if (!(T.playing && T.mode === 'live' && !bgBlocked())) {
+    bgStopFade(true);
+    if (!el.paused) el.pause();
+    return;
+  }
+  if (!B.fading) el.muted = true; // 画面に戻った直後は、Web Audio が鳴り始めるまで <audio> を鳴らしておく
+  bgSetSrc(B.cur ? B.cur.url : B.silent);
+  el.loop = true;
+  if (el.paused) bgPlayEl('shadow');
+}
+// 前面で再生している間は、消音の <audio> の位置を Web Audio に合わせておく（画面を離れた瞬間に位置を飛ばさなくて済むように）
+function bgSyncShadow() {
+  const el = B.el;
+  if (!el || T.mode !== 'live' || !T.playing || B.fading || !B.cur || B.src !== B.cur.url || el.paused || el.seeking || el.readyState < 2) return;
+  const now = performance.now();
+  if (now - B.syncAt < 300) return;
+  B.syncAt = now;
+  if (A.ctx.currentTime < T.t0 || viewTime() >= T.end || B.cur.sig !== bgSig()) return; // カウント中・区間の余韻・音声が古い時は合わせない
+  const x = bgFileTime(B.cur.plan, viewTime());
+  if (Math.abs(el.currentTime - x) > 0.06) { try { el.currentTime = x; } catch (e) { /* 次の回に合わせる */ } }
+}
+// ページから <audio> の音量を変えられるか（iPhone の Safari は変えられない）
+function bgCanVolume() {
+  if (B.canVol == null) {
+    const el = B.el, v = el.volume;
+    try { el.volume = 0.5; B.canVol = Math.abs(el.volume - 0.5) < 0.01; el.volume = v; } catch (e) { B.canVol = false; }
+  }
+  return B.canVol;
+}
+// <audio> の音量を BG_FADE 秒かけて from → to にする。変えられない端末では、すぐ done
+function bgRamp(from, to, done) {
+  const el = B.el;
+  clearTimeout(B.fade);
+  B.fade = 0;
+  if (!bgCanVolume()) { if (done) done(); return; }
+  const start = performance.now();
+  const step = () => {
+    const k = Math.min(1, (performance.now() - start) / (BG_FADE * 1000));
+    el.volume = from + (to - from) * k;
+    if (k < 1) B.fade = setTimeout(step, 8);
+    else { B.fade = 0; if (done) done(); }
+  };
+  step();
+}
+// 上げ下げをやめる。mute：消音して音量を元に戻す
+function bgStopFade(mute) {
+  clearTimeout(B.fade);
+  B.fade = 0;
+  if (B.fading && mute) { B.el.muted = true; }
+  if (B.fading || mute) { try { B.el.volume = 1; } catch (e) { /* ignore */ } }
+  B.fading = false;
+}
+// 画面が隠れた：Web Audio の再生を止め、同じ位置から <audio> で鳴らす
+function bgHandoff() {
+  if (!S.song || !T.playing || T.mode !== 'live' || bgBlocked()) return '';
+  if (!B.cur || B.cur.sig !== bgSig()) {
+    if (!B.busy && !B.timer) return '';
+    B.pending = true; // 作っている音声の完成を待つ（その間は Web Audio が鳴り続けられる端末もある）
+    if (B.timer) { clearTimeout(B.timer); bgMaybeRender(); }
+    bgLog('音声の完成を待って引き継ぎます');
+    return 'wait';
+  }
+  const plan = B.cur.plan, now = A.ctx.currentTime;
+  let x;
+  if (now < T.t0) x = plan.loop && Math.abs(T.p0 - plan.loop[0]) < 1e-6 ? Math.max(0, plan.pre + plan.lead - (T.t0 - now)) : bgFileTime(plan, T.p0);
+  else x = bgFileTime(plan, viewTime()); // 今聞こえている位置
+  const release = sectionLooping() && S.bgRelease;
+  clearInterval(T.timer);
+  T.timer = 0;
+  stopNotes();
+  T.cN = 0;
+  T.p0 = 0;
+  T.mode = 'bg';
+  B.used = B.cur;
+  B.released = release;
+  if (release) {
+    // ループだけを止める。区間・しおりの範囲は残し、戻っても自動では繰り返さない
+    S.loop.on = false;
+    T.end = Infinity;
+    syncLoopUI();
+  }
+  const el = B.el;
+  bgStopFade(false);
+  const aligned = B.src === B.used.url && !el.paused && !el.seeking && el.readyState >= 2 && Math.abs(el.currentTime - x) < 0.08;
+  bgSetSrc(B.used.url);
+  el.loop = !!plan.loop;
+  if (!aligned) bgSeekEl(x); // 消音で位置を合わせてあれば、飛ばさずにそのまま鳴らす（飛ばすと一瞬途切れる）
+  if (bgCanVolume()) el.volume = 0;
+  el.muted = false;
+  bgRamp(0, 1); // Web Audio の音が消えていく間に、<audio> を上げる
+  bgMediaMeta();
+  if (el.paused) bgPlayEl('handoff');
+  bgLog('画面を離れたので、' + fmt(bgSongTimeAt(plan, x)) + ' から音声ファイルの再生に引き継ぎました' + (release ? '（区間ループを止めて、曲の終わりまで）' : ''));
+  return 'ok';
+}
+// 画面に戻った：<audio> の位置から Web Audio の再生に戻す。音声の再開を待つ間も、<audio> の音と位置で表示を続ける。
+function bgReturn() {
+  B.pending = false;
+  if (T.mode !== 'bg') { bgRefresh(); return; }
+  if (!T.playing) { bgSettle(); return; }
+  let ctx = null;
+  try { ensureCtx(); ctx = A.ctx; } catch (e) { /* 画面に触れた時にもう一度試す */ }
+  if (ctx && ctx.state === 'running') { bgSettle(); return; }
+  if (ctx) {
+    const tok = ++B.retTok;
+    const onState = () => {
+      if (ctx.state !== 'running') return;
+      ctx.removeEventListener('statechange', onState);
+      if (tok === B.retTok && T.mode === 'bg' && document.visibilityState === 'visible') bgSettle();
+    };
+    ctx.addEventListener('statechange', onState);
+  }
+  bgLog('画面に戻りました。音の再開を待っています（画面に触れると戻ります）');
+  syncTransportUI();
+  kick();
+}
+function bgSettle() {
+  if (T.mode !== 'bg') return;
+  B.retTok++;
+  const el = B.el, plan = B.used ? B.used.plan : null, playing = T.playing;
+  const x = el.currentTime;
+  // 再生中なら、Web Audio が鳴り始める時（BG_LEAD 秒後）の位置から始め、それまで <audio> を鳴らしておく
+  const t = plan ? bgSongTimeAt(plan, playing ? x + BG_LEAD : x) : T.pos;
+  const inCount = !!(plan && plan.loop && x < plan.pre + plan.lead);
+  bgStopFade(false);
+  if (playing && S.song) {
+    B.fading = true;
+    B.fade = setTimeout(() => bgRamp(1, 0, () => { el.muted = true; try { el.volume = 1; } catch (e) { /* ignore */ } B.fading = false; }), BG_LEAD * 1000);
+  } else el.muted = true;
+  B.used = null;
+  if (B.released && !playing) say('区間ループはオフにしました（区間としおりは残っています）。', true);
+  T.mode = 'live';
+  T.playing = false;
+  T.pos = t;
+  view.follow = true;
+  syncViewUI();
+  if (playing && S.song) {
+    try { play(inCount ? plan.loop[0] : t, null, inCount ? { count: true } : undefined); } catch (e) { say(e.message); }
+    say(B.released ? '画面を離れている間も再生を続けました（区間ループはオフにしました）。' : '画面を離れている間も再生を続けました。', true);
+    bgLog(fmt(t) + ' から画面の再生に戻しました');
+  } else {
+    el.pause();
+    syncTransportUI();
+    bgLog(fmt(t) + ' で一時停止した状態で画面に戻りました');
+  }
+  B.released = false;
+  try { if (navigator.mediaSession) navigator.mediaSession.playbackState = 'none'; } catch (e) { /* 未対応 */ }
+  bgRefresh();
+  kick();
+}
+// <audio> の再生・停止（ロック画面、イヤホンのボタン、電話、曲の終わりなど）を、アプリの状態に写す
+function bgOnEl(e) {
+  if (T.mode !== 'bg') return;
+  const el = B.el, was = T.playing;
+  T.playing = e.type !== 'error' && !el.paused && !el.ended;
+  try { if (navigator.mediaSession) navigator.mediaSession.playbackState = T.playing ? 'playing' : 'paused'; } catch (x) { /* 未対応 */ }
+  if (e.type === 'error') bgLog('音声ファイルを再生できませんでした');
+  else if (e.type === 'ended') bgLog('曲の終わりまで再生しました');
+  else if (was !== T.playing) bgLog(T.playing ? '再生を再開しました' : fmt(bgSongTime()) + ' で一時停止しました（ロック画面・イヤホン・電話など）');
+  if (document.visibilityState === 'visible') { syncTransportUI(); kick(); }
+}
+// ロック画面の ±10秒。曲の時刻で動かす（画面の「戻す／送る」と同じ）。
+function bgSeekBy(sec) {
+  if (T.mode !== 'bg') { seekRelative(sec); return; }
+  const plan = B.used.plan, t = bgSongTime() + sec;
+  if (t >= S.song.duration) { B.el.pause(); bgSeekEl(bgFileTime(plan, S.song.duration)); return; } // 末尾では止める
+  // 区間ループの音声には区間の外が入っていないので、区間の中に収める
+  const lo = plan.loop ? plan.loop[0] : 0, hi = plan.loop ? Math.max(lo, plan.loop[1] - 0.05) : S.song.duration;
+  bgSeekEl(bgFileTime(plan, clamp(t, lo, hi)));
+}
+function bgMediaMeta() {
+  const ms = navigator.mediaSession;
+  if (!ms) return;
+  try {
+    if (typeof MediaMetadata === 'function') {
+      const part = S.song.parts[S.sel], md = MODES[S.mode];
+      ms.metadata = new MediaMetadata({ title: S.label || '練習中の曲', artist: 'アカペラ練習帳', album: (part ? part.name + '・' : '') + (S.solo ? '自分だけ' : md.mark + md.name) });
+    }
+    ms.playbackState = 'playing';
+  } catch (e) { /* 未対応 */ }
+}
+function bgInitMediaSession() {
+  const ms = navigator.mediaSession;
+  if (!ms) return;
+  const set = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* 未対応の操作は出さない */ } };
+  const stop = () => { if (T.mode === 'bg') B.el.pause(); else if (T.playing) pause(); };
+  set('play', () => { if (T.mode === 'bg') bgPlayEl('lock'); else if (!T.playing) togglePlay(); });
+  set('pause', stop);
+  set('stop', stop);
+  set('seekbackward', (d) => bgSeekBy(-((d && d.seekOffset) || 10)));
+  set('seekforward', (d) => bgSeekBy((d && d.seekOffset) || 10));
+  set('seekto', (d) => { if (T.mode === 'bg' && d && Number.isFinite(d.seekTime)) bgSeekEl(d.seekTime); });
+}
+function bgReset() {
+  if (T.mode === 'bg') bgSettle();
+  B.songId++;
+  clearTimeout(B.timer);
+  B.timer = 0;
+  B.pending = false;
+  B.fail = null;
+  if (B.el) { B.el.pause(); B.el.removeAttribute('src'); B.src = ''; B.el.load(); }
+  for (const it of B.cache) URL.revokeObjectURL(it.url);
+  B.cache = [];
+  B.cur = null;
+  B.used = null;
+}
+function bgLog(text) {
+  const d = new Date();
+  B.last = [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, '0')).join(':') + ' ' + text;
+  bgSyncStatus();
+}
+function bgSyncStatus() {
+  const el = $('bgStatus');
+  if (!el) return;
+  const why = bgBlocked(), sig = why ? '' : bgSig();
+  let t;
+  if (why) t = why;
+  else if (T.mode === 'bg') t = '画面を離れている間の再生中';
+  else if (B.fail && B.fail.sig === sig) t = B.fail.text;
+  else if (B.cur && B.cur.sig === sig) t = '準備できています（' + fmt(B.cur.plan.sec) + 'の音声' + (B.cur.plan.loop ? '・ループ1周分' : '') + '）';
+  else t = '今の設定の音声を準備しています…';
+  el.textContent = '状態：' + t + (B.last ? '\n直前：' + B.last : '');
 }
 
 // ===== マイクと音程判定 =====
@@ -1781,6 +2275,7 @@ function demoSong() {
 function setSong(song, label, meta) {
   if (T.playing) pause();
   stopNotes();
+  bgReset(); // 前の曲の音声は使わない
   S.song = song;
   S.songBytes = (meta && meta.bytes) || null; // 共有リンクを作るための元のファイル（デモ曲・共有で開いた曲は null）
   S.songVer = (meta && meta.ver) || null;
@@ -2116,6 +2611,7 @@ function renderParts() {
     tone.addEventListener('change', () => {
       st.tone = tone.value;
       savePartPrefs();
+      bgRefresh();
       // 止まっている時は、そのパートの音域の真ん中あたりの音で試し聴きさせる
       if (!T.playing && !R) {
         try { ensureCtx(); } catch (e) { return; }
@@ -2262,6 +2758,7 @@ function syncLoopUI() {
   syncPickSheet();
   renderMarks();
   renderPasses();
+  bgRefresh();
 }
 // ===== しおり：ピアノロールで始まりと終わりを指定した区間（曲ごとに、この端末に記憶） =====
 const MARK_KEY = 'acapella-renshucho:marks:v1';
@@ -2837,6 +3334,7 @@ function syncMicUI() {
   $('micLbl').textContent = on ? 'マイクON' : 'マイクOFF';
   $('micBtn').setAttribute('aria-label', on ? 'マイクをオフ（現在オン）' : 'マイクをオン（現在オフ）');
   $('micBtn').style.setProperty('--lvl', '0');
+  bgRefresh();
 }
 // 表示だけを身近な分数に丸める。判定・記録のセント値は変更しない。
 function formatPitchDifference(cents) {
@@ -3333,6 +3831,7 @@ let raf = 0, lastRead = 0;
 function frame(ts) {
   raf = 0;
   if (A.mic && T.mode !== 'review') analyze();
+  if (T.playing && T.mode === 'live') bgSyncShadow();
   draw();
   const keep = T.playing || !!A.mic || !!drag || (CP.on && !!CP.kind);
   if (!keep || !ts || ts - lastRead > 70) { lastRead = ts || 0; updateReadouts(); }
@@ -3366,7 +3865,8 @@ $('loopA-').addEventListener('click', () => nudgeLoop('a', -1));
 $('loopA+').addEventListener('click', () => nudgeLoop('a', 1));
 $('loopB-').addEventListener('click', () => nudgeLoop('b', -1));
 $('loopB+').addEventListener('click', () => nudgeLoop('b', 1));
-$('countIn').addEventListener('change', (e) => { S.countIn = e.target.checked; savePrefs(); });
+$('countIn').addEventListener('change', (e) => { S.countIn = e.target.checked; savePrefs(); bgRefresh(); });
+$('bgRelease').addEventListener('change', (e) => { S.bgRelease = e.target.checked; savePrefs(); bgRefresh(); });
 // パートのチップは左右の矢印キーでも選べる
 $('chips').addEventListener('keydown', (e) => {
   if (!S.song || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
@@ -3385,7 +3885,7 @@ $('endBtn').addEventListener('click', () => { if (S.song) seekTo(S.song.duration
 $('repeatBtn').addEventListener('click', toggleRepeat);
 $('wholeLoopBtn').addEventListener('click', setWholeLoop);
 $('soloBtn').addEventListener('click', () => setSolo(!S.solo));
-$('transportHelpBtn').addEventListener('click', () => $('transportHelp').showModal());
+$('transportHelpBtn').addEventListener('click', () => { bgSyncStatus(); $('transportHelp').showModal(); });
 $('transportHelpClose').addEventListener('click', () => $('transportHelp').close());
 $('recBtn').addEventListener('click', () => (R ? pause() : startRecording()));
 $('micBtn').addEventListener('click', () => (A.mic ? micOff() : micOn()));
@@ -3402,7 +3902,7 @@ $('guideVol').addEventListener('input', (e) => {
   applyGains();
 });
 $('rate').addEventListener('input', (e) => { $('rateOut').textContent = e.target.value + '%'; });
-$('rate').addEventListener('change', (e) => { S.rate = Number(e.target.value) / 100; restartIfPlaying(); });
+$('rate').addEventListener('change', (e) => { S.rate = Number(e.target.value) / 100; restartIfPlaying(); bgRefresh(); });
 const setKey = (d) => {
   S.transpose = clamp(S.transpose + d, -12, 12);
   $('keyOut').textContent = S.transpose > 0 ? '+' + S.transpose : S.transpose < 0 ? '−' + -S.transpose : '±0';
@@ -3633,9 +4133,13 @@ document.addEventListener('keydown', (e) => {
   togglePlay();
 });
 window.addEventListener('beforeunload', () => { if (A.mic) A.mic.stream.getTracks().forEach((t) => t.stop()); });
-// ほかのアプリに切り替えた・画面を消した時は一時停止する（裏ではガイドの音を正しく鳴らし続けられないため）
+// ほかのアプリに切り替えた・画面を消した時：聴いているだけなら <audio> の再生へ引き継いで続ける。
+// マイク・録音・聴き返し・和音練習の時は、裏ではガイドと声を正しく合わせられないので、従来どおり一時停止する。
 const onHidden = () => {
-  if (document.visibilityState === 'hidden') stopForInterruption('ほかの画面に切り替わったので一時停止しました。');
+  if (document.visibilityState !== 'hidden') { bgReturn(); return; }
+  const handed = bgHandoff();
+  if (handed === 'ok' || handed === 'wait') return;
+  stopForInterruption(A.mic && T.playing ? 'マイクを使っている間は、ほかの画面に切り替わると一時停止します。' : 'ほかの画面に切り替わったので一時停止しました。');
 };
 document.addEventListener('visibilitychange', onHidden);
 window.addEventListener('pagehide', () => stopForInterruption('ほかの画面に切り替わったので一時停止しました。'));
@@ -3653,6 +4157,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   zoomTouched = p.zoomTouched === true || (p.zoomTouched == null && p.zoom != null && p.zoom !== 140);
   if (typeof p.ec === 'boolean') S.ec = p.ec;
   if (typeof p.countIn === 'boolean') S.countIn = p.countIn;
+  if (typeof p.bgRelease === 'boolean') S.bgRelease = p.bgRelease;
   if (MODES[p.mode]) S.mode = p.mode;
   if (typeof p.partName === 'string') S.partName = p.partName;
   if (validLatency(p.latMs)) { S.latMs = p.latMs; latTouched = true; }
@@ -3668,6 +4173,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   $('lat').value = S.latMs;
   $('latOut').textContent = S.latMs + 'ミリ秒';
   $('countIn').checked = S.countIn;
+  $('bgRelease').checked = S.bgRelease;
   setMode(S.mode);
   // LINE・Instagram・Facebook の中のブラウザでは、マイクや保存が使えないことがある
   if (/\bLine\/|Instagram|FBAN|FBAV/i.test(navigator.userAgent)) $('inAppNote').hidden = false;
@@ -3677,6 +4183,16 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   $('partMix').open = matchMedia('(min-width: 900px)').matches;
 })();
 
+// 画面を離れても聴くための <audio>（画面には出さない）
+B.el = $('bgAudio');
+['play', 'playing', 'pause', 'ended', 'error'].forEach((type) => B.el.addEventListener(type, bgOnEl));
+B.silent = URL.createObjectURL(wavBlob(new Float32Array(BG_SR / 2), BG_SR)); // 音声の完成前に、操作の中で <audio> を動かしておくための無音
+bgInitMediaSession();
+// 戻った後に音の再開を待っている間は、画面に触れた操作の中で Web Audio の再生へ戻す（iPhoneは操作の中でないと再開できないことがある）
+const bgTouch = () => { if (T.mode === 'bg' && document.visibilityState === 'visible') { try { ensureCtx(); } catch (e) { /* 再生ボタンで再度試す */ } bgSettle(); } };
+document.addEventListener('pointerdown', bgTouch, true);
+document.addEventListener('keydown', bgTouch, true);
+bgSyncStatus();
 new ResizeObserver(resize).observe(wrap);
 const practiceObserver = new ResizeObserver(requestPracticeLayout);
 [$('practice'), $('transport'), document.querySelector('.top'), $('partBar'), $('modeBar')].forEach((el) => practiceObserver.observe(el));
