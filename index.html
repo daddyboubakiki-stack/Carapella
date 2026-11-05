@@ -313,6 +313,9 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .song-meta { margin: 0; font-size: 0.78rem; color: var(--muted); }
 .file-menu > summary { display: none; }
 .file-menu > .actions { display: flex; }
+/* 曲の読み込み前だけ、上の2ボタンを右寄せにする。中央の案内・練習画面は変えない。 */
+body:not(.has-song) .file-menu { margin-left: auto; }
+body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px; }
 .part-select { display: none; }
 .modes { position: relative; flex-wrap: nowrap; }
 .mode-help { position: relative; margin-left: auto; flex: none; }
@@ -350,6 +353,8 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .has-song .top h1 { font-size: 0.82rem; color: var(--muted); }
   .has-song .song { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 0.82rem; color: var(--ink); }
   .file-menu { flex: none; position: relative; }
+  body:not(.has-song) .file-menu { width: 100%; }
+  body:not(.has-song) .file-menu > .actions .btn { min-height: 52px; padding: 0.6em 1.15em; font-size: 1rem; }
   .has-song .file-menu > summary { display: block; cursor: pointer; list-style: none; border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.76rem; }
   .has-song .file-menu:not([open]) > .actions { display: none; }
   .has-song .file-menu[open] > .actions { position: absolute; right: 0; top: 100%; min-width: 175px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); z-index: 10; box-shadow: 0 6px 24px #0003; }
