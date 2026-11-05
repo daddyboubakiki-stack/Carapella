@@ -2403,6 +2403,8 @@ function syncShareBtn() {
 }
 function closeShare() {
   if ($('sharePanel')) $('sharePanel').hidden = true;
+  // 閉じたパネルの高さを引き続き差し引かないよう、音程バーの空き高さを測り直す。
+  requestPracticeLayout();
 }
 function shareSay(text) { $('shareMsg').textContent = text || ''; }
 async function openShare() {
@@ -2412,6 +2414,8 @@ async function openShare() {
   $('sharePanel').hidden = false;
   shareSay('');
   await renderShare();
+  // パネルの内容が確定してから、音程バーの高さを再計算する。
+  requestPracticeLayout();
   $('sharePanel').scrollIntoView({ block: 'nearest' });
 }
 // 今の曲をこの端末で共有済みなら、そのリンクを出す。まだなら「リンクを作る」
