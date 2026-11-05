@@ -296,3 +296,34 @@ function harness() {
     console.log('PASS: by default a section/bookmark loop stops when the page is hidden; playback continues from the same position to the end, the range is kept and not restarted; the setting can keep looping');
   });
 }
+
+// 7) Issue #24 の境目：カウント中・区間の余韻の中で離れた時、作っている途中に戻った時
+{
+  // 区間の2周目のカウント中（T.p0＝区間の始まり、まだ T.t0 前）に離れる → 区間の始まりから通しで
+  let h = harness();
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }"); // 6〜10秒
+  h.run("T.playing = true; T.mode = 'live'; T.p0 = 6; T.t0 = 101; A.ctx.currentTime = 100");
+  h.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
+  assert.equal(h.run('bgHandoff()'), 'ok');
+  near(h.el.currentTime, 6, 1e-9, 'during the count-in, start from the section start (no count-in in the whole-song file)');
+  assert.equal(h.state.S.loop.on, false);
+  // 区間の終わりの余韻（10秒を少し過ぎた所）で離れる → 区間の先へそのまま続く
+  h = harness();
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h.run("T.playing = true; T.mode = 'live'; T.p0 = 6; T.t0 = 90; T.end = 10; A.ctx.currentTime = 100; clock = 10.2");
+  h.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
+  h.run('bgHandoff()');
+  near(h.el.currentTime, 10.2, 1e-9, 'in the loop tail, continue past the section instead of jumping back');
+  // 設定を変えた直後に離れ（完成待ち）、完成前に戻った → 後から完成しても引き継がない
+  h = harness();
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h.run("T.playing = true; T.mode = 'live'; B.busy = true; B.cur = { sig: 'old', plan: bgPlan(), url: 'blob:a' }");
+  assert.equal(h.run('bgHandoff()'), 'wait');
+  assert.equal(h.state.S.loop.on, true, 'the loop is not released while only waiting');
+  h.run('bgReturn()');
+  assert.equal(h.run('B.pending'), false);
+  h.run("bgUse({ sig: bgSig(), plan: bgPlan(), url: 'blob:b' })");
+  assert.equal(h.state.T.mode, 'live', 'a late render does not hand off after returning');
+  assert.equal(h.state.S.loop.on, true);
+  console.log('PASS: Issue #24 edges: count-in and loop-tail positions on release, and a render finishing after return does not hand off');
+}
