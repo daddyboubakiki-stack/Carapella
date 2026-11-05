@@ -218,7 +218,7 @@
 
 ### 7.6 スマホで試してほしい手順
 
-**準備**：プレビューURL <https://carapella-preview.daddyboubakiki.workers.dev/> を開く（7.10。公開URLは `main` のまま）。Android は Chrome、iPhone は Safari で開く（LINEの中では開かない）。見出しが「アカペラ練習帳（プレビュー）」になっていれば正しいページ。マイクはOFFのまま。
+**準備**：公開URL <https://daddyboubakiki-stack.github.io/Carapella/> を開く（`main` に反映済み。試作用のプレビューURLは2026-11-05に削除した。7.10）。Android は Chrome、iPhone は Safari で開く（LINEの中では開かない）。マイクはOFFのまま。
 
 記録：端末名・OSの版・ブラウザ・イヤホン（なし／有線／Bluetooth）・結果（○できた／×できない／△気になる）・止まった時刻。×や△の時は「？」を開き、「状態」と「直前」の行を写真に撮る。
 
@@ -254,7 +254,9 @@
 - `tests/chord_recovery_test.js`・`tests/transport_test.js`・`tests/controls-browser.html`・`tests/e2e2.js`：7.3のとおり。
 - `README.md`・`CLAUDE.md`・`tests/README.md`・`docs/device-checklist.md`・この文書。
 
-### 7.10 プレビューURL（2026-11-05 作成）
+### 7.10 プレビューURL（2026-11-05 作成・同日削除）
+
+> **2026-11-05 に削除した**（PR #23 の `main` へのマージと公開の後、ユーザーの指示）。Worker `carapella-preview` を消し、URLが 404 を返すことを確認した。共有APIの Worker `carapella-share` とほかの Worker は残している。以後の実機確認は公開URL（https://daddyboubakiki-stack.github.io/Carapella/）で行う。以下は作成時の記録。
 
 **URL：<https://carapella-preview.daddyboubakiki.workers.dev/>**（ユーザーの依頼で作成。公開版の GitHub Pages と `main` は変えていない）
 
@@ -321,10 +323,10 @@
 - `tests/controls-browser.html`：42項目 PASS。
 - 既存の Playwright スイート（`46a99ba` で実行）：`test:e2e`・`test:parts`・`test:chord`（3サイズ）・`test:zoom`・`test:layout`・`test:share` は NG 0。`test:marks` は 1280×800 が NG 0、390×664 で上の既存の2件（360×640 は 390×664 の失敗で `npm run` が止まるため、個別に実行して同じ2件を確認済み）。
 
-**プレビュー**：Worker `carapella-preview` の固定コミットを `46a99ba`（`index.html` の最後の変更）に更新する（7.10の方法）。
+**プレビュー**：Worker `carapella-preview` の固定コミットを `46a99ba`（`index.html` の最後の変更）に更新した（7.10の方法）。公開後に削除したので、下の手順は公開URLで行う。
 
 **スマホで試してほしいこと（追加分）**
-1. 見出しが「アカペラ練習帳（プレビュー）」で、「？」の一番下が「準備できています」になるのを待つ。
+1. 公開URLを開き、「？」の一番下が「準備できています」になるのを待つ（プレビューで作ったしおり・設定は公開URLには引き継がれない）。
 2. 「区間指定」で2小節（デモ曲なら最初の方）を区間にして再生 → 区間の中でロック → 区間の終わりを越えて曲の終わりまで流れるか。
 3. 戻ると「区間ループはオフにしました」と出て、ループボタンが「ループ」（オフ）か。「ループ」を押すと同じ区間に戻るか。
 4. 「練習の設定」で「画面を離れたら、区間ループを止めて…」をオフにして、2と同じことをする → ロック中も区間を繰り返すか。
