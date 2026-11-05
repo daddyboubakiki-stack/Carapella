@@ -214,7 +214,7 @@
 
 ### 7.6 スマホで試してほしい手順
 
-**準備**：このブランチの `index.html` を https のURLで開く必要がある（公開URLは `main` のまま）。方法はユーザーが選ぶ（7.7）。Android は Chrome、iPhone は Safari で開く（LINEの中では開かない）。マイクはOFFのまま。
+**準備**：プレビューURL <https://carapella-preview.daddyboubakiki.workers.dev/> を開く（7.10。公開URLは `main` のまま）。Android は Chrome、iPhone は Safari で開く（LINEの中では開かない）。見出しが「アカペラ練習帳（プレビュー）」になっていれば正しいページ。マイクはOFFのまま。
 
 記録：端末名・OSの版・ブラウザ・イヤホン（なし／有線／Bluetooth）・結果（○できた／×できない／△気になる）・止まった時刻。×や△の時は「？」を開き、「状態」と「直前」の行を写真に撮る。
 
@@ -231,7 +231,7 @@
 
 ### 7.7 ユーザーに決めてほしいこと
 
-- **実機で試すURL**：①このPRを確認してから `main` にマージし、公開URLで試す／②プレビュー用のURL（Cloudflare Pages など）を一時的に作る（インターネットに出るので、ユーザーの許可が必要）／③アーティファクトで画面だけ触る（裏での再生の確認には向かない）。
+- ~~実機で試すURL~~ → **ユーザーの決定（2026-11-05）**：公開版を変えずにプレビューを用意し、まずユーザーの Android Chrome で確認する。7.10のURLを使う。
 - **マイクON中に画面を離れた時**：今は従来どおり一時停止。「マイクを自動で切って音楽だけ続ける」案もある（裏で声を判定しないことは同じ）。
 - **「？」の中の状態表示**：試験中の手がかりとして出している。実機確認が済んだら、短くするか残すか。
 - **「声（アー）」の作成時間が長すぎた場合**：音色のフィルターを音ごとではなくパートごとにかける近似で、約2.2倍速くなる。通常の再生との差は −38 dB（音の大きさの約1.3%）と測った（Chromium、合成音。聞き比べはしていない）。採用は実機で時間を測ってから。
@@ -248,3 +248,16 @@
 - `tests/background_test.js`（新規）・`tests/background_browser.js`（新規）・`package.json`（`test:unit` に追加、`test:background` を追加）。
 - `tests/chord_recovery_test.js`・`tests/transport_test.js`・`tests/controls-browser.html`・`tests/e2e2.js`：7.3のとおり。
 - `README.md`・`CLAUDE.md`・`tests/README.md`・`docs/device-checklist.md`・この文書。
+
+### 7.10 プレビューURL（2026-11-05 作成）
+
+**URL：<https://carapella-preview.daddyboubakiki.workers.dev/>**（ユーザーの依頼で作成。公開版の GitHub Pages と `main` は変えていない）
+
+- 仕組み：ユーザーの Cloudflare アカウントに Worker `carapella-preview` を作り、GitHub にある **コミット `c8e361f` の `index.html`** をそのまま配る（見出しとタブの名前に「（プレビュー）」を足すだけ）。コミットを固定しているので、ブランチに後から何か足しても、この Worker を作り直すまで中身は変わらない。
+- 検索に載らないよう `X-Robots-Tag: noindex` を付けた。ただしURLを知っている人は誰でも開ける（アプリの中身は公開リポジトリと同じ）。
+- 確認したこと：URLの中身が `c8e361f` の `index.html` と（「プレビュー」の2か所以外）同じ。Chromium の Android（Pixel 7）相当の表示で、デモ曲の準備→再生→隠す→3秒後も進む→戻ると続きから、を確認（エミュレーションで、実機ではない）。
+- 公開版との違い：
+  - 端末に記憶する設定・しおり・パートの色と音色は、公開版と別に保存される（URLが違うため）。プレビューで初めて開くと初期設定。
+  - 「共有リンク」は使えない（共有APIが公開版のページからの読み書きだけを許しているため。APIの設定は変えていない）。
+- 中身を更新する時：Cloudflare API で Worker `carapella-preview` のコード中の `COMMIT` を新しいコミットに替えて、同じ名前で上書きする。
+- やめる時：Cloudflare のダッシュボード（Workers & Pages → `carapella-preview` → 削除）か、API の `DELETE /accounts/{account_id}/workers/scripts/carapella-preview`。共有API（`carapella-share`）とは別の Worker なので、消しても公開版や共有リンクには影響しない。
