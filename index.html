@@ -164,13 +164,14 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 
 .roll {
   position: relative; height: clamp(260px, 52vh, 560px); border-radius: 18px; overflow: hidden;
-  border: 1.5px solid var(--line); background: var(--roll); touch-action: none; /* 2本指のピンチはバーの長さに使う（ページの拡大は音程バーの外で） */
+  border: 1.5px solid var(--line); background: var(--roll);
 }
-.roll canvas { display: block; width: 100%; height: 100%; cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.roll canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } /* ピンチ・パンを独自に扱うのは音程バーだけ。重ねたメニューは指でスクロールできる。 */
 /* 音符をタップ・長押しした時の小さなシート（音程バーに重ねて出し、グラフの高さを変えない） */
 .picksheet {
   position: absolute; z-index: 2; left: 62px; right: 6px; bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
   background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 5px 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
 }
 .picksheet[hidden] { display: none; }
 .picksheet.at-top { top: 6px; bottom: auto; } /* 選んだ音符が下の方にある時は、上に出して音符を隠さない */
@@ -179,7 +180,7 @@ input[type="range"] { accent-color: var(--ink); height: 28px; }
 .picksheet .btn { min-height: 34px; padding: 0.2em 0.8em; font-size: 0.85rem; }
 .picksheet .iconbtn { width: 30px; height: 30px; margin-left: auto; }
 @media (max-width: 700px) {
-  .picksheet { left: 60px; right: 4px; padding: 4px; gap: 4px; }
+  .picksheet { left: 4px; right: 4px; padding: 4px; gap: 4px; }
   .picksheet .btn { padding: 0.15em 0.6em; font-size: 0.8rem; min-height: 32px; }
   .picksheet .pickmsg { flex-basis: 100%; } /* お知らせ（5秒）は1行目に。ボタンは2行目 */
 }
@@ -2928,7 +2929,15 @@ function syncPickSheet() {
   $('pickSheet').hidden = !on;
   if (on) {
     const [lo, hi] = viewRange();
-    $('pickSheet').classList.toggle('at-top', pick.note.m + curTr() < (lo + hi) / 2);
+    // 実際のグラフ高で音符の上下の空きを測る。短い画面ではメニュー内を
+    // スクロールさせ、選んだ音符とグラフの高さを保つ。
+    const row = (view.h - 30) / (hi - lo + 1);
+    const y = 24 + (hi + 0.5 - pick.note.m - curTr()) * row;
+    const half = Math.max(3, Math.min(row * 0.72, 26)) / 2;
+    const above = y - half - 12, below = view.h - y - half - 12;
+    const atTop = above >= below;
+    $('pickSheet').classList.toggle('at-top', atTop);
+    $('pickSheet').style.maxHeight = Math.max(0, Math.floor(atTop ? above : below)) + 'px';
   }
 }
 // 長押しして離した：その音符の長さでしおりを作る（0.2秒未満は区間用に後ろへ延ばす）
@@ -3423,6 +3432,7 @@ function syncViewUI() {
   $('followBtn').disabled = view.follow;
   $('pitchViewReset').disabled = view.pitchOffset === 0 && (view.verticalZoom || 1) === 1;
   $('rollWrap').dataset.follow = String(view.follow);
+  syncPickSheet();
 }
 function resumeFollow() {
   view.follow = true;
@@ -3495,6 +3505,7 @@ function resize() {
   view.h = r.height;
   cv.width = Math.max(1, Math.round(r.width * view.dpr));
   cv.height = Math.max(1, Math.round(r.height * view.dpr));
+  syncPickSheet();
   kick();
 }
 function rrect(x, y, w, h, r) {
