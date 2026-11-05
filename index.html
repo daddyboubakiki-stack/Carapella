@@ -54,6 +54,10 @@ body {
 .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px; margin-bottom: 12px; }
 .top h1 { font-size: 1.65rem; line-height: 1.2; margin: 0; letter-spacing: 0.03em; font-weight: 700; }
 .app-subtitle { margin: 3px 0 0; color: var(--muted); font-size: 0.83rem; }
+/* おたよりの入口は練習画面の外に置き、音程バーや再生ボタンの高さを奪わない。 */
+.feedback-footer { display: flex; justify-content: center; margin-top: 18px; font-size: 0.85rem; }
+.feedback-footer a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; color: var(--ink); text-decoration: underline; text-underline-offset: 0.18em; }
+.feedback-footer a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .song { margin: 4px 0 0; color: var(--muted); font-size: 0.92rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -669,6 +673,7 @@ body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px
   </div>
   <dialog class="transport-help" id="transportHelp" aria-labelledby="transportHelpTitle">
     <header><h2 id="transportHelpTitle">再生・練習のヒント</h2><button class="iconbtn" id="transportHelpClose" type="button" aria-label="説明を閉じる" autofocus><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 4 6 6 6-6 2 2-6 6 6 6-2 2-6-6-6 6-2-2 6-6-6-6z"/></svg></button></header>
+    <p>感想・不具合・機能のリクエストは、<a href="https://chibichan-sketchbook.daddyboubakiki.workers.dev/otayori/?app=karamoni" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">おたよりポスト 📮</a>から送れます（新しいタブで開きます）。</p>
     <h3>イヤホンで使ってください</h3>
     <p>スピーカーでガイドを流すと、マイクがその音を拾ってしまい、歌っていなくても「合っている」になることがあります。③④でも、「自分だけ」をオンにした間は自分のガイドが鳴ります。iPhoneでガイドが聞こえない時は、消音モード（マナーモード）を切ってみてください。</p>
     <h3>自分だけ聴く</h3>
@@ -759,6 +764,9 @@ body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px
       <p>このページの設定（遅れ補正・音名・カウントなど）と、最後に選んだパート名は、この端末のブラウザに記憶します。</p>
     </div>
   </details>
+  <footer class="feedback-footer" aria-label="からもにへのご意見">
+    <a href="https://chibichan-sketchbook.daddyboubakiki.workers.dev/otayori/?app=karamoni" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">おたよりポスト 📮</a>
+  </footer>
 </div>
 
 <script>
