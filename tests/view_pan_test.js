@@ -16,7 +16,7 @@ const ctx = vm.createContext({
   S: { song: { duration: 180, parts: [{ min: 48, max: 60 }] }, sel: 0, zoom: 100 },
   T: { playing: true, pos: 25, p0: 25, t0: 10 },
   $: id => nodes[id], clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
-  kick: () => {}, curTr: () => 0, zoomTouched: true,
+  kick: () => {}, syncPickSheet: () => {}, curTr: () => 0, zoomTouched: true,
   GUT: Number(html.match(/const GUT = (\d+)/)[1]),
   matchMedia: () => ({ matches: true }),
 });

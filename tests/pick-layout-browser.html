@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>音符メニューの配置検証</title>
+<style>
+body { font: 15px sans-serif; margin: 16px; }
+iframe { display: block; border: 1px solid #aaa; margin-top: 12px; }
+button { padding: 10px; }
+pre { white-space: pre-wrap; max-height: 140px; overflow: auto; }
+</style>
+<h1>音符メニューの配置検証</h1>
+<button id="run" disabled>検証を開始</button>
+<button id="show">390×664で操作を確認</button>
+<strong id="status">読み込み中</strong>
+<details id="logs" open><summary>検証ログ</summary><pre id="result"></pre></details>
+<iframe id="app" title="音符メニューの検証画面"></iframe>
+<script src="pick-layout-browser.js"></script>
