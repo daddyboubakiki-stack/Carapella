@@ -25,7 +25,7 @@ function harness() {
       return nodes.get(id);
     },
     clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
-    kick() {}, syncLoopUI() {}, resumeFollow() {},
+    kick() {}, syncLoopUI() {}, resumeFollow() {}, bgRefresh() {},
   };
   state.A.partGains = Array.from({ length: 3 }, () => ({ gain: { value: null, setTargetAtTime(v) { this.value = v; } } }));
   const c = vm.createContext(state);

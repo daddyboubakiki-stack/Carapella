@@ -79,7 +79,11 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
   new Function('ctx', 'CP', 'T', 'stopForInterruption', 'return (' + callback + ');')(ctx, CP, T, () => stopped++)();
   assert.equal(stopped, 1);
   const hiddenSrc = section('const onHidden =', "document.addEventListener('visibilitychange'");
-  new Function('document','stopForInterruption', hiddenSrc + 'return onHidden;')({ visibilityState: 'hidden' }, () => stopped++)();
+  const hidden = (handoff) => new Function('document', 'stopForInterruption', 'bgHandoff', 'bgReturn', 'A', 'T', hiddenSrc + 'return onHidden;')(
+    { visibilityState: 'hidden' }, () => stopped++, () => handoff, () => {}, { mic: null }, { playing: true });
+  hidden('')(); // 和音練習・マイク・録音などで引き継がない時は、従来どおり止める
+  assert.equal(stopped, 2);
+  hidden('ok')(); hidden('wait')(); // 聴くだけの再生を <audio> へ引き継いだ・完成を待つ時は止めない
   assert.equal(stopped, 2);
   assert(html.includes("window.addEventListener('pagehide', () => stopForInterruption("));
   console.log('PASS: actual statechange, visibilitychange and pagehide handlers include chord interruption');
