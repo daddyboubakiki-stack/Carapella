@@ -129,7 +129,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('隠れている間：<audio> が進み、Web Audioの音は残っていない', !mid.paused && mid.t - before.t > 2.2 && mid.t - before.t < 2.9 && mid.active === 0, JSON.stringify(mid));
   check('ロック画面用の曲名と再生状態', mid.title === 'かえるの合唱（3部輪唱）' && mid.state === 'playing', JSON.stringify(mid));
   const back = await ev(() => { const { B } = window.__t; const el = B.el.currentTime; window.__setHidden(false); const { T, viewTime } = window.__t; return { el, mode: T.mode, playing: T.playing, p0: T.p0, vt: viewTime(), muted: B.el.muted, msg: document.getElementById('msg').textContent }; });
-  check('戻った：<audio> の位置から通常の再生に戻り、譜面の時刻が合う', back.mode === 'live' && back.playing && Math.abs(back.p0 - back.el) < 0.02 && back.muted && back.msg.includes('続けました'), JSON.stringify(back));
+  check('戻った：<audio> の位置（Web Audio が鳴り始める0.08秒後の位置）から通常の再生に戻り、譜面の時刻が合う', back.mode === 'live' && back.playing && Math.abs(back.p0 - back.el - 0.08) < 0.02 && back.msg.includes('続けました'), JSON.stringify(back));
+  await sleep(200);
+  check('戻って0.2秒後には <audio> は消音に戻っている', await ev(() => window.__t.B.el.muted && !window.__t.B.fading));
   await sleep(500);
   const after = await ev(() => ({ vt: window.__t.viewTime(), playing: window.__t.T.playing }));
   check('戻った後も再生が続く', after.playing && after.vt > back.el + 0.3, JSON.stringify(after));
@@ -188,7 +190,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const fw = await ev(() => window.__t.bgSongTime());
   check('ロック画面の10秒送りで区間の外へ移れる', fw > 17 && fw < 18.5, fw.toFixed(2));
   const r4b = await ev(() => { window.__setHidden(false); const { T, S } = window.__t; return { mode: T.mode, playing: T.playing, on: S.loop.on, end: T.end, p0: T.p0, label: document.getElementById('repeatLbl').textContent, msg: document.getElementById('msg').textContent }; });
-  check('戻ると同じ位置から続き、区間ループは自動で再開しない', r4b.mode === 'live' && r4b.playing && !r4b.on && r4b.end === Infinity && Math.abs(r4b.p0 - fw) < 0.05 && r4b.label === 'ループ' && r4b.msg.includes('区間ループはオフ'), JSON.stringify(r4b));
+  check('戻ると同じ位置から続き、区間ループは自動で再開しない', r4b.mode === 'live' && r4b.playing && !r4b.on && r4b.end === Infinity && Math.abs(r4b.p0 - fw - 0.08) < 0.06 && r4b.label === 'ループ' && r4b.msg.includes('区間ループはオフ'), JSON.stringify(r4b));
   await page.click('#playBtn');
   await page.click('#repeatBtn');
   const again = await ev(() => { const { S } = window.__t; return { on: S.loop.on, scope: S.loop.scope, a: S.loop.a, b: S.loop.b, label: document.getElementById('repeatLbl').textContent }; });
@@ -238,6 +240,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ph = await ev(() => ({ mode: window.__t.T.mode, playing: window.__t.T.playing, paused: window.__t.B.el.paused }));
   check('ページ自体を離れたら <audio> も止める', ph.mode === 'live' && !ph.playing && ph.paused, JSON.stringify(ph));
   await ev(() => window.__setHidden(false));
+
+  note('\n## 5b. 切り替えの瞬間（「プツッ」と隙間を減らす工夫。耳で聞いた確認ではない）');
+  await page.click('#rewBtn');
+  await ev(() => { window.__seeks = 0; window.__t.B.el.addEventListener('seeking', () => window.__seeks++); });
+  await page.click('#playBtn');
+  const diffs = [];
+  for (let i = 0; i < 8; i++) { await sleep(400); diffs.push(await ev(() => { const { B, bgFileTime, viewTime } = window.__t; return +(B.el.currentTime - bgFileTime(B.cur.plan, viewTime())).toFixed(3); })); }
+  check('前面で再生中、消音の <audio> を通常の再生に0.08秒以内で合わせておく', diffs.slice(2).every((d) => Math.abs(d) < 0.08), JSON.stringify(diffs));
+  const fadeIn = await ev(async () => {
+    const { B } = window.__t; const s0 = window.__seeks;
+    window.__setHidden(true);
+    const vols = [B.el.volume]; const t0 = performance.now();
+    while (performance.now() - t0 < 120) { await new Promise((r) => setTimeout(r, 10)); vols.push(+B.el.volume.toFixed(2)); }
+    return { seeks: window.__seeks - s0, muted: B.el.muted, vols };
+  });
+  check('隠れる時：位置を飛ばさず、<audio> の音量を0から約0.05秒で上げる', fadeIn.seeks === 0 && !fadeIn.muted && fadeIn.vols[0] === 0 && fadeIn.vols.at(-1) === 1 && fadeIn.vols.some((v) => v > 0 && v < 1), JSON.stringify(fadeIn));
+  await sleep(800);
+  const fadeOut = await ev(async () => {
+    const { B, T } = window.__t; const x0 = B.el.currentTime;
+    window.__setHidden(false);
+    const p0 = T.p0, samples = []; const t0 = performance.now();
+    while (performance.now() - t0 < 220) { samples.push([Math.round(performance.now() - t0), B.el.muted, +B.el.volume.toFixed(2)]); await new Promise((r) => setTimeout(r, 15)); }
+    return { x0, p0, samples, fading: B.fading };
+  });
+  const early = fadeOut.samples.filter((s) => s[0] < 60), late = fadeOut.samples.filter((s) => s[0] > 180);
+  check('戻る時：Web Audio が鳴り始める0.08秒後まで <audio> を鳴らし、その後に下げて消音・音量を元に戻す', Math.abs(fadeOut.p0 - fadeOut.x0 - 0.08) < 0.01 && early.every((s) => !s[1] && s[2] === 1) && late.every((s) => s[1] && s[2] === 1) && !fadeOut.fading, JSON.stringify(fadeOut));
+  await page.click('#playBtn');
+  const af = await ev(() => ({ muted: window.__t.B.el.muted, vol: window.__t.B.el.volume, fading: window.__t.B.fading, paused: window.__t.B.el.paused }));
+  check('一時停止すると <audio> も止まり、消音・音量は元どおり', af.paused && af.muted && af.vol === 1 && !af.fading, JSON.stringify(af));
 
   note('\n## 6. 引き継がない・引き継げない時');
   await ev(() => { navigator.mediaDevices.getUserMedia = async () => { const { A } = window.__t; return A.ctx.createMediaStreamDestination().stream; }; });

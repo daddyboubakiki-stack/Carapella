@@ -39,7 +39,7 @@ function harness() {
     navigator: {},
     URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
     performance: { now: () => 0 },
-    setTimeout: () => 1, clearTimeout() {}, clearInterval() {},
+    timers: [], setTimeout: (fn) => { state.timers.push(fn); return state.timers.length; }, clearTimeout() {}, clearInterval() {},
     calls: [], said: [],
     $: (id) => { if (!nodes.has(id)) nodes.set(id, { textContent: '' }); return nodes.get(id); },
     clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
@@ -68,7 +68,7 @@ function harness() {
   vm.runInContext(section('const partLevel =', 'function syncSoloUI('), c);
   vm.runInContext(section('const looping =', 'function countParams('), c);
   vm.runInContext(section('const BG_SR =', '// ===== マイクと音程判定'), c);
-  vm.runInContext('B.el = el; B.silent = "blob:silent";', c);
+  vm.runInContext('B.el = el; B.silent = "blob:silent"; B.canVol = false;', c); // 音量を変えられない端末（iPhone）と同じ扱い
   return { state, run: (code) => vm.runInContext(code, c), el };
 }
 
@@ -158,9 +158,12 @@ function harness() {
   h.el.currentTime = 23.5;
   h.run('bgReturn()');
   assert.equal(h.state.T.mode, 'live');
-  assert.equal(h.state.calls.at(-1).play, 23.5);
+  near(h.state.calls.at(-1).play, 23.58, 1e-9, 'Web Audio starts where <audio> will be when it begins (0.08s later)');
   assert.equal(h.state.calls.at(-1).opts, undefined, 'no extra count-in after returning mid-song');
-  assert.equal(h.el.muted, true);
+  assert.equal(h.el.muted, false, '<audio> keeps sounding until Web Audio begins');
+  h.run('timers[B.fade - 1]()');
+  assert.equal(h.el.muted, true, 'then <audio> is muted again');
+  assert.equal(h.run('B.fading'), false);
   assert.equal(h.state.view.follow, true, 'score follows playback again');
 
   for (const [name, code] of [['mic', 'A.mic = {}'], ['recording', 'R = {}'], ['chord', 'CP.on = true'], ['review', "T.mode = 'review'"]]) {
@@ -179,6 +182,13 @@ function harness() {
   assert.equal(h.run('bgHandoff()'), 'wait');
   assert.equal(h.run('B.pending'), true);
   assert.equal(h.state.T.mode, 'live', 'Web Audio keeps playing while waiting');
+  // 消音の <audio> が今の位置に合っていれば、位置を飛ばさずにそのまま鳴らす
+  h = harness();
+  h.run("T.playing = true; T.mode = 'live'; clock = 20; B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }; B.src = 'blob:a'");
+  h.el.paused = false; h.el.muted = true; h.el.currentTime = 19.97;
+  h.run('bgHandoff()');
+  near(h.el.currentTime, 19.97, 1e-9, 'no seek when the muted <audio> is already aligned');
+  assert.equal(h.el.muted, false);
   console.log('PASS: hidden page hands listening playback to <audio>; mic, recording, review, chord practice and stale audio do not');
 }
 
@@ -270,7 +280,7 @@ function harness() {
   near(h.run('bgSongTime()'), 19.9, 1e-9, 'lock-screen +10s may leave the section');
   h.run('bgReturn()');
   assert.equal(h.state.T.mode, 'live');
-  assert.equal(h.state.calls.at(-1).play, 19.9);
+  near(h.state.calls.at(-1).play, 19.98, 1e-9);
   assert.equal(h.state.S.loop.on, false, 'the section loop does not restart by itself');
   assert(h.state.said.at(-1).includes('区間ループはオフ'));
   // 端末に断られたら、区間ループは止めずに元へ戻す

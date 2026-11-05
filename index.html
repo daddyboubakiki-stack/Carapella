@@ -1536,6 +1536,10 @@ function giveStartNote() {
 const BG_SR = 22050;         // 音声ファイルの標本化周波数（ガイド音には足りる。容量と作る時間を抑える）
 const BG_MAX_SEC = 15 * 60;  // テンポを反映した長さがこれを超える場合は作らない（端末のメモリを守る）
 const BG_WAIT_MS = 600;      // 設定を変えてから作り始めるまで待つ（音量を動かしている途中で何度も作らない）
+// 切り替えの瞬間の「プツッ」と隙間を減らす：<audio> の音量を短く上げ下げし、Web Audio と少し重ねる。
+// 成り立たなくなる所：iPhone の Safari はページから <audio> の音量を変えられないので、音量は一瞬で切り替わる。
+const BG_FADE = 0.04;        // <audio> の音量を上げ下げする長さ（秒）
+const BG_LEAD = 0.08;        // play() が Web Audio を鳴らし始めるまでの時間（T.t0 = 今 + 0.08秒）
 const B = {
   el: null, src: '', silent: '', songId: 0,
   cur: null,    // 今の設定に合わせて最後に用意した音声：{ sig, plan, url, ms }
@@ -1543,6 +1547,7 @@ const B = {
   cache: [],    // 直近の音声（ループのオン／オフを行き来しても作り直さない）
   busy: false, timer: 0, pending: false, fail: null, seekTok: 0, retTok: 0,
   released: false, // 画面を離れた時に区間ループを止めた（戻った時に知らせる）
+  fade: 0, fading: false, canVol: null, syncAt: 0, // 音量の上げ下げと、消音中の <audio> の位置合わせ
   last: '',     // 直前の引き継ぎの記録（「？」の中に出す。実機で確かめる時の手がかり）
 };
 // 引き継げない理由（引き継げる時は空文字）
@@ -1765,13 +1770,56 @@ function bgShadow() {
   const el = B.el;
   if (!el || T.mode === 'bg') return;
   if (!(T.playing && T.mode === 'live' && !bgBlocked())) {
+    bgStopFade(true);
     if (!el.paused) el.pause();
     return;
   }
+  if (!B.fading) el.muted = true; // 画面に戻った直後は、Web Audio が鳴り始めるまで <audio> を鳴らしておく
   bgSetSrc(B.cur ? B.cur.url : B.silent);
-  el.muted = true;
   el.loop = true;
   if (el.paused) bgPlayEl('shadow');
+}
+// 前面で再生している間は、消音の <audio> の位置を Web Audio に合わせておく（画面を離れた瞬間に位置を飛ばさなくて済むように）
+function bgSyncShadow() {
+  const el = B.el;
+  if (!el || T.mode !== 'live' || !T.playing || B.fading || !B.cur || B.src !== B.cur.url || el.paused || el.seeking || el.readyState < 2) return;
+  const now = performance.now();
+  if (now - B.syncAt < 300) return;
+  B.syncAt = now;
+  if (A.ctx.currentTime < T.t0 || viewTime() >= T.end || B.cur.sig !== bgSig()) return; // カウント中・区間の余韻・音声が古い時は合わせない
+  const x = bgFileTime(B.cur.plan, viewTime());
+  if (Math.abs(el.currentTime - x) > 0.06) { try { el.currentTime = x; } catch (e) { /* 次の回に合わせる */ } }
+}
+// ページから <audio> の音量を変えられるか（iPhone の Safari は変えられない）
+function bgCanVolume() {
+  if (B.canVol == null) {
+    const el = B.el, v = el.volume;
+    try { el.volume = 0.5; B.canVol = Math.abs(el.volume - 0.5) < 0.01; el.volume = v; } catch (e) { B.canVol = false; }
+  }
+  return B.canVol;
+}
+// <audio> の音量を BG_FADE 秒かけて from → to にする。変えられない端末では、すぐ done
+function bgRamp(from, to, done) {
+  const el = B.el;
+  clearTimeout(B.fade);
+  B.fade = 0;
+  if (!bgCanVolume()) { if (done) done(); return; }
+  const start = performance.now();
+  const step = () => {
+    const k = Math.min(1, (performance.now() - start) / (BG_FADE * 1000));
+    el.volume = from + (to - from) * k;
+    if (k < 1) B.fade = setTimeout(step, 8);
+    else { B.fade = 0; if (done) done(); }
+  };
+  step();
+}
+// 上げ下げをやめる。mute：消音して音量を元に戻す
+function bgStopFade(mute) {
+  clearTimeout(B.fade);
+  B.fade = 0;
+  if (B.fading && mute) { B.el.muted = true; }
+  if (B.fading || mute) { try { B.el.volume = 1; } catch (e) { /* ignore */ } }
+  B.fading = false;
 }
 // 画面が隠れた：Web Audio の再生を止め、同じ位置から <audio> で鳴らす
 function bgHandoff() {
@@ -1803,10 +1851,14 @@ function bgHandoff() {
     syncLoopUI();
   }
   const el = B.el;
+  bgStopFade(false);
+  const aligned = B.src === B.used.url && !el.paused && !el.seeking && el.readyState >= 2 && Math.abs(el.currentTime - x) < 0.08;
   bgSetSrc(B.used.url);
   el.loop = !!plan.loop;
-  bgSeekEl(x);
+  if (!aligned) bgSeekEl(x); // 消音で位置を合わせてあれば、飛ばさずにそのまま鳴らす（飛ばすと一瞬途切れる）
+  if (bgCanVolume()) el.volume = 0;
   el.muted = false;
+  bgRamp(0, 1); // Web Audio の音が消えていく間に、<audio> を上げる
   bgMediaMeta();
   if (el.paused) bgPlayEl('handoff');
   bgLog('画面を離れたので、' + fmt(bgSongTimeAt(plan, x)) + ' から音声ファイルの再生に引き継ぎました' + (release ? '（区間ループを止めて、曲の終わりまで）' : ''));
@@ -1837,9 +1889,15 @@ function bgSettle() {
   if (T.mode !== 'bg') return;
   B.retTok++;
   const el = B.el, plan = B.used ? B.used.plan : null, playing = T.playing;
-  const x = el.currentTime, t = plan ? bgSongTimeAt(plan, x) : T.pos;
+  const x = el.currentTime;
+  // 再生中なら、Web Audio が鳴り始める時（BG_LEAD 秒後）の位置から始め、それまで <audio> を鳴らしておく
+  const t = plan ? bgSongTimeAt(plan, playing ? x + BG_LEAD : x) : T.pos;
   const inCount = !!(plan && plan.loop && x < plan.pre + plan.lead);
-  el.muted = true;
+  bgStopFade(false);
+  if (playing && S.song) {
+    B.fading = true;
+    B.fade = setTimeout(() => bgRamp(1, 0, () => { el.muted = true; try { el.volume = 1; } catch (e) { /* ignore */ } B.fading = false; }), BG_LEAD * 1000);
+  } else el.muted = true;
   B.used = null;
   if (B.released && !playing) say('区間ループはオフにしました（区間としおりは残っています）。', true);
   T.mode = 'live';
@@ -3773,6 +3831,7 @@ let raf = 0, lastRead = 0;
 function frame(ts) {
   raf = 0;
   if (A.mic && T.mode !== 'review') analyze();
+  if (T.playing && T.mode === 'live') bgSyncShadow();
   draw();
   const keep = T.playing || !!A.mic || !!drag || (CP.on && !!CP.kind);
   if (!keep || !ts || ts - lastRead > 70) { lastRead = ts || 0; updateReadouts(); }

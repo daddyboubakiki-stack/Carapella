@@ -107,7 +107,9 @@ run.onclick = async () => {
     const elTime = api.B.el.currentTime;
     Object.defineProperty(d, 'visibilityState', { value: 'visible', configurable: true });
     d.dispatchEvent(new w.Event('visibilitychange'));
-    check('戻ると同じ位置から通常の再生に戻る', api.T.playing && api.T.mode === 'live' && Math.abs(api.T.p0 - elTime) < 0.05 && api.B.el.muted);
+    check('戻ると同じ位置（Web Audio が鳴り始める0.08秒後の位置）から通常の再生に戻る', api.T.playing && api.T.mode === 'live' && Math.abs(api.T.p0 - elTime - 0.08) < 0.05);
+    await wait(250);
+    check('戻った後、<audio> は消音に戻る', api.B.el.muted && !api.B.fading);
     $('playBtn').click();
     delete d.visibilityState;
     $('rewBtn').click(); api.setMode(1);
