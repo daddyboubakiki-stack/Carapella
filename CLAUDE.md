@@ -30,6 +30,7 @@ MIDIを見ながら聴き、自分のパートを練習するスマホ中心のW
 
 - `npm run test:unit`：ブラウザ不要。再生・ソロ・ループ、バックグラウンド再生の判断（`tests/background_test.js`）も含みます。
 - `npm run test:background`：Chromiumで、用意した音声の中身と、隠れた時の引き継ぎ・戻った時の位置合わせ・ロック画面の操作を確認します。
+- `npm run test:background:webkit`／`test:background:iphone`：同じ確認を Safari と同じエンジン（Linux の WebKit）で。iphone は iPhone 15 の画面・ブラウザ名と「`<audio>` の音量をページから変えられない」制約を再現する。先に `npx playwright install webkit`（足りなければ `install-deps webkit`）が必要。**本物の iPhone の代わりではない**（handoff 7.13）。
 - HTTPプレビューの `tests/controls-browser.html` →「検証を開始」：本体のコードを使うブラウザ結合テスト。マイク入力は合成ストリームです。
 - `tests/chord-audio.html`：前回のお手本のOfflineAudioContext検証。
 - 実機での画面ロック／別アプリ切り替えは自動テストで代用できません。
