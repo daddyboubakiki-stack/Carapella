@@ -107,6 +107,28 @@ let cleanup = async () => {};
   await p.click('#shareClose'); await p.click('#shareBtn'); await sleep(200);
   check('開き直すと、同じリンクが出る（2つ目を作らない）', (await p.inputValue('#shareLink')) === link && await p.isHidden('#shareNew') && rows().length === 1);
 
+  // 2b) スマホで共有パネルを閉じたあと、音程バーの高さが元に戻ることを確認する。
+  // 共有欄は音程バーより上に出るため、開閉のたびにレイアウトを測り直す必要がある。
+  const mobile = await newPage(390, 780);
+  await mobile.goto(APP);
+  await mobile.setInputFiles('#fileIn', midiFile);
+  await sleep(250);
+  const rollHeight = () => mobile.locator('#rollWrap').evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  const beforeShareHeight = await rollHeight();
+  await mobile.click('#fileMenu > summary');
+  await mobile.click('#shareBtn');
+  await sleep(250);
+  const openShareHeight = await rollHeight();
+  await mobile.click('#shareClose');
+  await sleep(250);
+  const closedShareHeight = await rollHeight();
+  check('共有パネルを閉じると音程バーの高さが戻る（スマホ）',
+    await mobile.isHidden('#sharePanel') &&
+    beforeShareHeight > 130 && openShareHeight < beforeShareHeight - 30 &&
+    Math.abs(closedShareHeight - beforeShareHeight) <= 3,
+    JSON.stringify({ beforeShareHeight, openShareHeight, closedShareHeight }));
+  await mobile.context().close();
+
   // 3) 受け取る（別の端末）
   const q = await newPage(390, 664);
   await q.goto(link); await sleep(600);
