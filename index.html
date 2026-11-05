@@ -451,38 +451,6 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .transport .btn.mic::after { left: 6px; right: 6px; bottom: 2px; }
 }
 
-/* 曲を開く前は入口を1か所にし、押せない練習操作を見せない。曲を開いた後の画面は従来どおり。 */
-body:not(.has-song) .file-menu,
-body:not(.has-song) .hud,
-body:not(.has-song) .legend,
-body:not(.has-song) .plot-help,
-body:not(.has-song) #transport,
-body:not(.has-song) .mixer,
-body:not(.has-song) #partMix,
-body:not(.has-song) section.block,
-body:not(.has-song) details.settings { display: none; }
-body:not(.has-song) .roll { height: auto; min-height: 0; background: var(--surface); }
-body:not(.has-song) .roll canvas { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
-body:not(.has-song) .empty {
-  position: relative; inset: auto;
-  padding: clamp(24px, 6vw, 48px) clamp(18px, 5vw, 40px);
-  gap: 16px;
-}
-body:not(.has-song) .empty-steps { font-size: clamp(1.15rem, 4vw, 1.5rem); line-height: 1.4; }
-body:not(.has-song) .intro-sequence { font-size: 0.84rem; color: var(--muted); }
-body:not(.has-song) .empty .actions {
-  display: grid; grid-template-columns: 1fr; gap: 10px;
-  margin: 6px 0; width: min(100%, 380px);
-}
-body:not(.has-song) .empty .actions .btn {
-  width: 100%; min-height: 54px; padding: 10px 16px;
-  border-radius: 16px; white-space: normal;
-}
-body:not(.has-song) .empty .note { max-width: 30em; line-height: 1.7; font-size: 0.84rem; }
-@media (min-width: 560px) {
-  body:not(.has-song) .empty .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 440px); }
-}
-
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
@@ -602,13 +570,12 @@ body:not(.has-song) .empty .note { max-width: 30em; line-height: 1.7; font-size:
         <button class="iconbtn" id="pickClose" type="button" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg></button>
       </div>
       <div class="empty" id="empty">
-        <p class="empty-steps">曲を開いて、歌ってみよう♪</p>
-        <p class="intro-sequence">①曲を開く → ②パートを選ぶ → ③再生</p>
-        <div class="actions" role="group" aria-label="練習する曲を選ぶ">
+        <p class="empty-steps">①デモを開く → ②パートを選ぶ → ③再生</p>
+        <div class="actions">
           <button class="btn primary" id="openBtn2" type="button">MIDIを開く</button>
           <button class="btn" id="demoBtn2" type="button">デモ曲で試す</button>
         </div>
-        <p class="note">まず試すなら「かえるの合唱」（3部輪唱）のデモ曲がおすすめ！ LINEなどで受け取ったMIDIはスマホに保存してから開いてね。パソコンではここにドラッグ＆ドロップもできます。</p>
+        <p class="note">LINEで受け取ったMIDIは、いったんスマホに保存してから「MIDIを開く」で選びます。パソコンではここにドロップもできます。デモ曲は「かえるの合唱」の3部輪唱です。</p>
       </div>
     </div>
     <div class="legend" aria-label="グラフの凡例">
