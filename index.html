@@ -655,7 +655,7 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
     <h3>送り・戻しとループ</h3>
     <p>「10」の矢印は、曲の再生位置を10秒ずつ動かします。「末尾へ」は曲の最後で止まります。ループは、初めは曲全体を繰り返します。「区間指定」で小節を選ぶか、音符の長押しでしおりを作ると、その範囲を繰り返します。ループを切っても指定範囲は残ります。区間の外へ移動すると、ループはオフになります。</p>
     <h3>画面を切り替えても聴く（試験中）</h3>
-    <p>マイクと録音を使っていない時は、再生中にほかのアプリへ切り替えたり画面を消したりしても、同じ設定（自分だけ・練習の段階・音量・音色・テンポ・キー・ループ）のまま音が続くようにしています。そのため、設定を変えると数秒かけて端末の中で音声を作り直します。戻ると、聴いていた位置から画面の再生に戻ります。ロック画面では再生・一時停止と10秒の送り・戻しができます（区間ループ中は区間の中だけ）。端末やブラウザによっては止まることがあります。</p>
+    <p>マイクと録音を使っていない時は、再生中にほかのアプリへ切り替えたり画面を消したりしても、同じ設定（自分だけ・練習の段階・音量・音色・テンポ・キー・ループ）のまま音が続くようにしています。そのため、設定を変えると数秒かけて端末の中で音声を作り直します。戻ると、聴いていた位置から画面の再生に戻ります。区間・しおりのループ中に画面を離れると、初めの設定ではループだけを止めて、曲の終わりまで流します（区間としおりは残ります）。画面を離れても区間を繰り返したい時は「練習の設定」で変えられます。ロック画面では再生・一時停止と10秒の送り・戻しができます。端末やブラウザによっては止まることがあります。</p>
     <p class="bg-status" id="bgStatus"></p>
   </dialog>
   <audio id="bgAudio" preload="auto" hidden></audio>
@@ -694,6 +694,9 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="countIn" checked><span><b>再生の前にカウントを鳴らす</b><br><span class="help">再生・録音・区間リピートのたびに、1小節分のカウントを鳴らします。③④では、このあいだに自分のパートの最初の音も鳴ります。</span></span></label>
+      </div>
+      <div class="set">
+        <label class="check"><input type="checkbox" id="bgRelease" checked><span><b>画面を離れたら、区間ループを止めて曲の終わりまで聴く</b><br><span class="help">区間・しおりのループ中に、ほかのアプリへ切り替えたり画面を消したりした時の動きです。オンでは、ループだけを止めて、聴いていた位置から曲の終わりまで流します（区間としおりは残ります。戻っても自動では繰り返しません）。オフでは、画面を離れている間も区間を繰り返します（ロック画面の10秒送り・戻しは区間の中だけ）。全曲ループは、どちらでも続きます。</span></span></label>
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="octFree"><span><b>オクターブ違いも正解にする</b><br><span class="help">男声が女声パートを（またはその逆を）練習する時に。声の線は目標と同じオクターブに移して表示します。</span></span></label>
@@ -1050,7 +1053,7 @@ const S = {
   guideVol: 0.8, rate: 1, transpose: 0,
   tol: 50, sensitivity: 'medium', octaveFree: false, showOthers: true, naming: 'en', ec: false, latMs: 80, zoom: 140,
   trail: [], score: { n: 0, ok: 0 }, live: null, level: 0, takes: [], takeNo: 0,
-  mode: 1, solo: false, countIn: true, loop: { on: false, scope: 'all', a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
+  mode: 1, solo: false, countIn: true, bgRelease: true, loop: { on: false, scope: 'all', a: 0, b: 1, t: null, mark: null }, passes: [], marks: [], partName: '',
 };
 const T = { playing: false, mode: 'live', pos: 0, p0: 0, t0: 0, rate: 1, tr: 0, next: 0, timer: 0, reviewSrc: null, reviewTake: null, cStart: 0, cBeat: 0, cN: 0, end: Infinity };
 const A = { ctx: null, guide: null, pitchGain: null, reviewGain: null, partGains: [], wave: null, active: new Set(), mic: null };
@@ -1088,7 +1091,7 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}') || {}; } catch (e) { return {}; }
 }
 function savePrefs() {
-  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, vZoom: view.verticalZoom, ec: S.ec, countIn: S.countIn, mode: S.mode, partName: S.partName };
+  const p = { naming: S.naming, tol: S.tol, sensitivity: S.sensitivity, octaveFree: S.octaveFree, showOthers: S.showOthers, zoom: S.zoom, zoomTouched, vZoom: view.verticalZoom, ec: S.ec, countIn: S.countIn, bgRelease: S.bgRelease, mode: S.mode, partName: S.partName };
   if (latTouched) p.latMs = S.latMs;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 記憶できなくても練習はできる */ }
 }
@@ -1460,7 +1463,7 @@ function pause() {
   if (T.mode === 'bg' && !T.playing) { bgSettle(); return; } // 裏で一時停止していた <audio> の位置を引き取る
   if (!T.playing) return;
   T.pos = clamp(Math.max(T.p0, songNow()), 0, S.song.duration); // カウント中に止めたら、歌い出しの位置に戻す
-  if (T.mode === 'bg') { B.used = null; B.el.muted = true; } // 画面を離れている間の再生を止めた
+  if (T.mode === 'bg') { B.used = null; B.released = false; B.el.muted = true; } // 画面を離れている間の再生を止めた
   T.playing = false;
   T.cN = 0;
   clearInterval(T.timer);
@@ -1539,6 +1542,7 @@ const B = {
   used: null,   // 画面を離れている間に鳴らしている音声
   cache: [],    // 直近の音声（ループのオン／オフを行き来しても作り直さない）
   busy: false, timer: 0, pending: false, fail: null, seekTok: 0, retTok: 0,
+  released: false, // 画面を離れた時に区間ループを止めた（戻った時に知らせる）
   last: '',     // 直前の引き継ぎの記録（「？」の中に出す。実機で確かめる時の手がかり）
 };
 // 引き継げない理由（引き継げる時は空文字）
@@ -1556,7 +1560,8 @@ function bgPlan() {
   const rate = S.rate;
   const levels = S.song.parts.map((_, i) => Math.round(partLevel(i) * 1e4) / 1e4);
   const plan = { song: B.songId, rate, tr: S.transpose, guide: S.guideVol, levels, tones: S.pstate.map((st, i) => (levels[i] > 0 ? st.tone : null)), loop: null, pre: 0, lead: 0, beat: 0, n: 0, own: null };
-  if (looping()) {
+  // 区間・しおりのループは、設定（初めはオン）で画面を離れた時に止めるので、曲全体の音声を用意しておく。全曲ループはそのまま回す。
+  if (looping() && !(sectionLooping() && S.bgRelease)) {
     // ループは、通常の再生と同じく「間（0.1秒）→カウント→区間→余韻」を1周として、<audio> の繰り返しで回す
     const [a, b] = loopRange();
     plan.loop = [a, b];
@@ -1747,6 +1752,7 @@ function bgPlayFailed(why, e) {
     T.mode = 'live';
     T.playing = false;
     T.pos = t;
+    if (B.released) { S.loop.on = true; B.released = false; } // 引き継げなかったので、区間ループは止めずに元へ戻す
     syncTransportUI();
     say('ほかの画面に切り替わったので一時停止しました（裏で鳴らし続けることを端末に断られました）。');
     bgLog('引き継ぎを断られ、' + fmt(t) + ' で一時停止しました（' + name + '）');
@@ -1781,6 +1787,7 @@ function bgHandoff() {
   let x;
   if (now < T.t0) x = plan.loop && Math.abs(T.p0 - plan.loop[0]) < 1e-6 ? Math.max(0, plan.pre + plan.lead - (T.t0 - now)) : bgFileTime(plan, T.p0);
   else x = bgFileTime(plan, viewTime()); // 今聞こえている位置
+  const release = sectionLooping() && S.bgRelease;
   clearInterval(T.timer);
   T.timer = 0;
   stopNotes();
@@ -1788,6 +1795,13 @@ function bgHandoff() {
   T.p0 = 0;
   T.mode = 'bg';
   B.used = B.cur;
+  B.released = release;
+  if (release) {
+    // ループだけを止める。区間・しおりの範囲は残し、戻っても自動では繰り返さない
+    S.loop.on = false;
+    T.end = Infinity;
+    syncLoopUI();
+  }
   const el = B.el;
   bgSetSrc(B.used.url);
   el.loop = !!plan.loop;
@@ -1795,7 +1809,7 @@ function bgHandoff() {
   el.muted = false;
   bgMediaMeta();
   if (el.paused) bgPlayEl('handoff');
-  bgLog('画面を離れたので、' + fmt(bgSongTimeAt(plan, x)) + ' から音声ファイルの再生に引き継ぎました');
+  bgLog('画面を離れたので、' + fmt(bgSongTimeAt(plan, x)) + ' から音声ファイルの再生に引き継ぎました' + (release ? '（区間ループを止めて、曲の終わりまで）' : ''));
   return 'ok';
 }
 // 画面に戻った：<audio> の位置から Web Audio の再生に戻す。音声の再開を待つ間も、<audio> の音と位置で表示を続ける。
@@ -1827,6 +1841,7 @@ function bgSettle() {
   const inCount = !!(plan && plan.loop && x < plan.pre + plan.lead);
   el.muted = true;
   B.used = null;
+  if (B.released && !playing) say('区間ループはオフにしました（区間としおりは残っています）。', true);
   T.mode = 'live';
   T.playing = false;
   T.pos = t;
@@ -1834,13 +1849,14 @@ function bgSettle() {
   syncViewUI();
   if (playing && S.song) {
     try { play(inCount ? plan.loop[0] : t, null, inCount ? { count: true } : undefined); } catch (e) { say(e.message); }
-    say('画面を離れている間も再生を続けました。', true);
+    say(B.released ? '画面を離れている間も再生を続けました（区間ループはオフにしました）。' : '画面を離れている間も再生を続けました。', true);
     bgLog(fmt(t) + ' から画面の再生に戻しました');
   } else {
     el.pause();
     syncTransportUI();
     bgLog(fmt(t) + ' で一時停止した状態で画面に戻りました');
   }
+  B.released = false;
   try { if (navigator.mediaSession) navigator.mediaSession.playbackState = 'none'; } catch (e) { /* 未対応 */ }
   bgRefresh();
   kick();
@@ -3791,6 +3807,7 @@ $('loopA+').addEventListener('click', () => nudgeLoop('a', 1));
 $('loopB-').addEventListener('click', () => nudgeLoop('b', -1));
 $('loopB+').addEventListener('click', () => nudgeLoop('b', 1));
 $('countIn').addEventListener('change', (e) => { S.countIn = e.target.checked; savePrefs(); bgRefresh(); });
+$('bgRelease').addEventListener('change', (e) => { S.bgRelease = e.target.checked; savePrefs(); bgRefresh(); });
 // パートのチップは左右の矢印キーでも選べる
 $('chips').addEventListener('keydown', (e) => {
   if (!S.song || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
@@ -4081,6 +4098,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   zoomTouched = p.zoomTouched === true || (p.zoomTouched == null && p.zoom != null && p.zoom !== 140);
   if (typeof p.ec === 'boolean') S.ec = p.ec;
   if (typeof p.countIn === 'boolean') S.countIn = p.countIn;
+  if (typeof p.bgRelease === 'boolean') S.bgRelease = p.bgRelease;
   if (MODES[p.mode]) S.mode = p.mode;
   if (typeof p.partName === 'string') S.partName = p.partName;
   if (validLatency(p.latMs)) { S.latMs = p.latMs; latTouched = true; }
@@ -4096,6 +4114,7 @@ window.addEventListener('pagehide', () => stopForInterruption('ほかの画面�
   $('lat').value = S.latMs;
   $('latOut').textContent = S.latMs + 'ミリ秒';
   $('countIn').checked = S.countIn;
+  $('bgRelease').checked = S.bgRelease;
   setMode(S.mode);
   // LINE・Instagram・Facebook の中のブラウザでは、マイクや保存が使えないことがある
   if (/\bLine\/|Instagram|FBAN|FBAV/i.test(navigator.userAgent)) $('inAppNote').hidden = false;

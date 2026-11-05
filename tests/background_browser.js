@@ -102,11 +102,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click('#soloBtn');
   await setUi(() => { const c = document.getElementById('countIn'); c.checked = true; c.dispatchEvent(new Event('change')); });
   await ev(() => { window.__t.T.pos = 2.5; });
+  await setUi(() => { const c = document.getElementById('bgRelease'); c.checked = false; c.dispatchEvent(new Event('change')); }); // 画面を離れても区間を繰り返す設定
   await page.click('#loopBtn'); // 2〜3小節目（2.4〜7.2秒）を区間に
   await ready();
   const lp = await ev(() => window.__t.B.cur.plan);
   m = await measure([[0, 0.09], [lp.pre, lp.pre + 0.05], [lp.pre + lp.lead + 0.05, lp.pre + lp.lead + 0.5]]);
   check('区間ループ：間（無音）→カウント→区間の最初の音（ミ）の1周分', Math.abs(lp.sec - (0.1 + 2.4 + 4.8 + 0.25)) < 0.01 && m.spans[0].rms < 1e-4 && m.spans[1].rms > 0.02 && Math.abs(m.spans[2].midi - 64) < 0.3, JSON.stringify({ sec: lp.sec, spans: m.spans }));
+  await setUi(() => { const c = document.getElementById('bgRelease'); c.checked = true; c.dispatchEvent(new Event('change')); }); // 初めの設定に戻す
+  await ready();
+  const lr = await ev(() => ({ plan: window.__t.B.cur.plan, on: window.__t.S.loop.on }));
+  check('初めの設定：区間ループ中でも、画面を離れた時のために曲全体の音声を用意する', lr.on && lr.plan.loop === null && Math.abs(lr.plan.sec - 29.3) < 0.01, JSON.stringify({ on: lr.on, loop: lr.plan.loop, sec: lr.plan.sec }));
   await page.click('#repeatBtn'); // ループを切る
   await setUi(() => { const c = document.getElementById('countIn'); c.checked = false; c.dispatchEvent(new Event('change')); });
   await ready();
@@ -147,6 +152,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click('#playBtn'); // 一時停止
   await setUi(() => { const c = document.getElementById('countIn'); c.checked = true; c.dispatchEvent(new Event('change')); });
   await ev(() => { window.__t.T.pos = 12.5; });
+  await setUi(() => { const c = document.getElementById('bgRelease'); c.checked = false; c.dispatchEvent(new Event('change')); });
   await page.click('#loopBtn');
   await ready();
   await page.click('#playBtn');
@@ -161,7 +167,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('カウント中に戻ると、区間の始まりからカウントして続ける', lp4b.playing && lp4b.end === lp4.range[1] && lp4b.p0 === lp4.range[0] && lp4b.cN > 0, JSON.stringify(lp4b));
   await page.click('#playBtn');
   await page.click('#repeatBtn');
+  await setUi(() => { const c = document.getElementById('bgRelease'); c.checked = true; c.dispatchEvent(new Event('change')); });
   await setUi(() => { const c = document.getElementById('countIn'); c.checked = false; c.dispatchEvent(new Event('change')); });
+  await ready();
+
+  note('\n## 4b. 初めの設定：区間ループ中に画面を離れたら、ループだけ止めて曲の終わりまで');
+  await ev(() => { window.__t.T.pos = 2.5; });
+  await page.click('#loopBtn'); // 2.4〜7.2秒
+  await ready();
+  await page.click('#playBtn');
+  await sleep(1500);
+  const r4 = await ev(() => { const t = window.__t.viewTime(); window.__setHidden(true); const { T, B, S, bgSongTime } = window.__t; return { t, el: bgSongTime(), mode: T.mode, loop: B.el.loop, on: S.loop.on, scope: S.loop.scope, a: S.loop.a, b: S.loop.b }; });
+  check('隠れると区間ループだけOFF、範囲は残し、今の位置から曲全体の音声で続ける', r4.mode === 'bg' && !r4.loop && !r4.on && r4.scope === 'section' && r4.a === 1 && r4.b === 2 && Math.abs(r4.el - r4.t) < 0.05 && r4.t > 2.4 && r4.t < 7.2, JSON.stringify(r4));
+  await ev(() => { window.__t.B.el.currentTime = 7.0; });
+  await sleep(800);
+  const past = await ev(() => window.__t.bgSongTime());
+  check('区間の終わり（7.2秒）を越えて続く', past > 7.4, past.toFixed(2));
+  await ev(() => window.__ms.seekforward({ action: 'seekforward' }));
+  await sleep(150);
+  const fw = await ev(() => window.__t.bgSongTime());
+  check('ロック画面の10秒送りで区間の外へ移れる', fw > 17 && fw < 18.5, fw.toFixed(2));
+  const r4b = await ev(() => { window.__setHidden(false); const { T, S } = window.__t; return { mode: T.mode, playing: T.playing, on: S.loop.on, end: T.end, p0: T.p0, label: document.getElementById('repeatLbl').textContent, msg: document.getElementById('msg').textContent }; });
+  check('戻ると同じ位置から続き、区間ループは自動で再開しない', r4b.mode === 'live' && r4b.playing && !r4b.on && r4b.end === Infinity && Math.abs(r4b.p0 - fw) < 0.05 && r4b.label === 'ループ' && r4b.msg.includes('区間ループはオフ'), JSON.stringify(r4b));
+  await page.click('#playBtn');
+  await page.click('#repeatBtn');
+  const again = await ev(() => { const { S } = window.__t; return { on: S.loop.on, scope: S.loop.scope, a: S.loop.a, b: S.loop.b, label: document.getElementById('repeatLbl').textContent }; });
+  check('「ループ」ボタンで、残っていた同じ区間のループに戻せる', again.on && again.scope === 'section' && again.a === 1 && again.b === 2 && again.label === '区間', JSON.stringify(again));
+  await page.click('#repeatBtn');
   await ready();
 
   note('\n## 5. ロック画面の操作・曲の終わり・ページを離れた時');

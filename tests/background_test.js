@@ -25,7 +25,7 @@ function harness() {
     S: {
       song: { duration: 60, bars: Array.from({ length: 30 }, (_, i) => ({ t: i * 2, n: i + 1, num: 4 })),
         parts: [0, 1, 2].map((i) => ({ name: 'P' + i, notes: [{ s: 1 + i, e: 3 + i, m: 60 + i }] })) },
-      label: 'テスト曲', sel: 1, mode: 1, solo: false, guideVol: 0.8, rate: 1, transpose: 0, countIn: true,
+      label: 'テスト曲', sel: 1, mode: 1, solo: false, guideVol: 0.8, rate: 1, transpose: 0, countIn: true, bgRelease: true,
       pstate: [{ vol: 0.7, muted: false, tone: 'soft' }, { vol: 0.7, muted: false, tone: 'clear' }, { vol: 0.7, muted: false, tone: 'voice' }],
       loop: { on: false, scope: 'all', a: 0, b: 1, t: null, mark: null }, events: [],
     },
@@ -54,7 +54,7 @@ function harness() {
     function ensureCtx() {}
     function viewTime() { return T.mode === 'bg' ? bgSongTime() : T.playing ? clock : T.pos; }
     function say(t, info) { said.push(t); }
-    function syncTransportUI() {} function syncViewUI() {} function kick() {}
+    function syncTransportUI() {} function syncViewUI() {} function kick() {} function syncLoopUI() {}
     function stopForInterruption(m) { calls.push('interrupt'); T.playing = false; }
     function seekRelative(s) { calls.push({ seekRelative: s }); }
     function togglePlay() { calls.push('toggle'); }
@@ -104,7 +104,7 @@ function harness() {
   h.run("S.pstate[0].tone = 'voice'");
   assert.equal(sig(), before, 'silent parts do not cause a re-render');
   // カウントのON/OFFは、ループの1周に入る「間・カウント」だけを変える
-  h.run("S.solo = false; S.mode = 1; S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h.run("S.solo = false; S.mode = 1; S.bgRelease = false; S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
   const lp = h.run('bgPlan()');
   assert.deepEqual(Array.from(lp.loop), [6, 10]);
   near(lp.pre, 0.1); near(lp.lead, 2); assert.equal(lp.n, 4);
@@ -129,7 +129,7 @@ function harness() {
   h.run('S.rate = 0.8');
   for (const t of [0, 1.234, 30, 59.9]) near(h.run(`bgSongTimeAt(bgPlan(), bgFileTime(bgPlan(), ${t}))`), t, 1e-9, 'whole song round trip');
   near(h.run('bgFileTime(bgPlan(), 40)'), 50);
-  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h.run("S.bgRelease = false; S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
   const p = h.run('bgPlan()');
   near(h.run('bgFileTime(bgPlan(), 6)'), p.pre + p.lead);
   near(h.run('bgFileTime(bgPlan(), 8)'), p.pre + p.lead + 2 / 0.8);
@@ -185,7 +185,7 @@ function harness() {
 // 4) カウント中・ループ・テンポ50%の位置合わせ、戻った時のカウント
 {
   const h = harness();
-  h.run("S.rate = 0.5; S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h.run("S.rate = 0.5; S.bgRelease = false; S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
   h.run("T.playing = true; T.mode = 'live'; T.p0 = 6; T.t0 = 101.5; A.ctx.currentTime = 100");
   h.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
   const p = h.run('bgPlan()');
@@ -234,11 +234,55 @@ function harness() {
   h2.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
   h2.el.reject = 'NotAllowedError';
   assert.equal(h2.run('bgHandoff()'), 'ok');
-  return Promise.resolve().then(() => new Promise((r) => setImmediate(r))).then(() => {
+  Promise.resolve().then(() => new Promise((r) => setImmediate(r))).then(() => {
     assert.equal(h2.state.T.mode, 'live');
     assert.equal(h2.state.T.playing, false);
     near(h2.state.T.pos, 12);
     assert(h2.state.said.at(-1).includes('断られ'));
     console.log('PASS: pauses from the lock screen, headphones, calls, song end and refused playback become a consistent paused state');
+  });
+}
+
+// 6) 初めの設定：区間・しおりのループ中に画面を離れたら、ループだけを止めて今の位置から曲の終わりまで（ユーザーの決定 2026-11-05）
+{
+  const loopOff = (h) => JSON.stringify(h.run("(() => { const keep = S.loop.on; S.loop.on = false; const p = bgPlan(); S.loop.on = keep; return p; })()"));
+  let h = harness();
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: [6.2, 9.5], mark: 'm1' }");
+  assert.equal(JSON.stringify(h.run('bgPlan()')), loopOff(h), 'section loop + release prepares the whole song (same audio as loop off)');
+  h.run("S.loop.scope = 'all'; S.loop.t = null; S.loop.mark = null");
+  assert(h.run('bgPlan()').loop, 'whole-song loop keeps looping in the background');
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: [6.2, 9.5], mark: 'm1' }; S.bgRelease = false");
+  assert.deepEqual(Array.from(h.run('bgPlan()').loop), [6.2, 9.5], 'the setting can keep the section loop');
+  // 区間（6.2〜9.5秒）の 8 秒で画面を離れる
+  h = harness();
+  h.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: [6.2, 9.5], mark: 'm1' }");
+  h.run("T.playing = true; T.mode = 'live'; T.p0 = 6.2; T.t0 = 90; T.end = 9.5; clock = 8");
+  h.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
+  assert.equal(h.run('bgHandoff()'), 'ok');
+  assert.equal(h.el.loop, false, 'the audio file is not looped');
+  near(h.el.currentTime, 8, 1e-9, 'continues from the audible position, not the section start');
+  assert.equal(h.state.S.loop.on, false, 'only the loop is turned off');
+  assert.deepEqual({ scope: h.state.S.loop.scope, t: Array.from(h.state.S.loop.t), mark: h.state.S.loop.mark }, { scope: 'section', t: [6.2, 9.5], mark: 'm1' }, 'range and bookmark are kept');
+  assert.equal(h.run('B.cur.sig === bgSig()'), true, 'after turning the loop off, the prepared audio still matches');
+  h.el.currentTime = 9.9;
+  near(h.run('bgSongTime()'), 9.9, 1e-9, 'plays past the end of the section');
+  h.run('bgSeekBy(10)');
+  near(h.run('bgSongTime()'), 19.9, 1e-9, 'lock-screen +10s may leave the section');
+  h.run('bgReturn()');
+  assert.equal(h.state.T.mode, 'live');
+  assert.equal(h.state.calls.at(-1).play, 19.9);
+  assert.equal(h.state.S.loop.on, false, 'the section loop does not restart by itself');
+  assert(h.state.said.at(-1).includes('区間ループはオフ'));
+  // 端末に断られたら、区間ループは止めずに元へ戻す
+  const h2 = harness();
+  h2.run("S.loop = { on: true, scope: 'section', a: 3, b: 4, t: null, mark: null }");
+  h2.run("T.playing = true; T.mode = 'live'; clock = 7");
+  h2.run("B.cur = { sig: bgSig(), plan: bgPlan(), url: 'blob:a' }");
+  h2.el.reject = 'NotAllowedError';
+  h2.run('bgHandoff()');
+  setImmediate(() => {
+    assert.equal(h2.state.T.playing, false);
+    assert.equal(h2.state.S.loop.on, true, 'a refused handoff keeps the section loop');
+    console.log('PASS: by default a section/bookmark loop stops when the page is hidden; playback continues from the same position to the end, the range is kept and not restarted; the setting can keep looping');
   });
 }
