@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>操作ボタン・ソロ・ループのブラウザ検証</title>
+<style>body{font:14px system-ui;margin:16px;background:#f5f7fb;color:#19263e}button{padding:10px 16px}pre{white-space:pre-wrap}iframe{border:1px solid #ccd4e0;display:block;background:white}#status{font-weight:bold}</style>
+<h1>操作ボタン・ソロ・ループのブラウザ検証</h1>
+<p>デモ曲と合成マイクで検証します。実際のマイクの許可は要求しません。</p>
+<button id="run" disabled>検証を開始</button> <span id="status">読み込み中</span>
+<details id="logs" open><summary>検証ログ</summary><pre id="result"></pre></details>
+<iframe id="app" title="練習画面プレビュー" allow="autoplay" width="390" height="780"></iframe>
+<script>
+const frame = document.getElementById('app'), run = document.getElementById('run'), status = document.getElementById('status'), result = document.getElementById('result');
+frame.onload = () => {
+  if (!frame.contentWindow.__controlsTest) return;
+  run.disabled = false; status.textContent = '準備完了';
+};
+// テスト用のコピーだけにAPIを足す。公開するindex.htmlにはグローバルを追加しない。
+fetch('../index.html').then(r => r.text()).then(html => {
+  const end = html.lastIndexOf('\n})();');
+  if (end < 0) throw Error('app closure not found');
+  frame.srcdoc = html.slice(0, end) + '\nwindow.__controlsTest = {S,T,A,CP,play,pause,setSong,demoSong,setMode,selectPart,loopRange,enterChord,exitChord,viewTime,ensureCtx};\n' + html.slice(end);
+}).catch(e => { status.textContent = '読み込み失敗'; result.textContent = e.stack; });
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+run.onclick = async () => {
+  run.disabled = true; result.textContent = ''; status.textContent = '検証中';
+  const rows = [];
+  const check = (name, ok, detail = '') => {
+    rows.push((ok ? 'PASS ' : 'FAIL ') + name + (detail ? ' ' + detail : ''));
+    result.textContent = rows.join('\n');
+    if (!ok) throw Error(name + ' ' + detail);
+  };
+  const w = frame.contentWindow, d = w.document, $ = id => d.getElementById(id);
+  const api = w.__controlsTest;
+  try {
+    $('demoBtn').click(); api.S.countIn = false; api.setMode(1); api.ensureCtx(); await api.A.ctx.resume();
+    check('デモ曲を開き、再生の6ボタン・練習の4ボタンがある', d.querySelectorAll('.main .btn').length === 6 && d.querySelectorAll('.aux .btn').length === 4);
+    check('イヤホンの長い説明は初期画面に出ない', !$('transportHelp').open && !Array.from(d.querySelectorAll('p.tip')).some(p => p.textContent.startsWith('イヤホンで')));
+    $('transportHelpBtn').click(); check('丸い？から説明を開く', $('transportHelp').open && $('transportHelp').textContent.includes('自分だけ聴く'));
+    $('transportHelpClose').click(); check('説明を閉じる', !$('transportHelp').open);
+
+    $('forwardBtn').click(); check('停止中に10秒送る', api.T.pos === 10 && !api.T.playing);
+    $('backBtn').click(); check('停止中に10秒戻る', api.T.pos === 0);
+    $('backBtn').click(); check('先頭より前へ行かない', api.T.pos === 0);
+    $('playBtn').click(); await wait(180);
+    const before = api.viewTime(); $('forwardBtn').click(); await wait(150);
+    check('再生中に10秒送っても再生を続ける', api.T.playing && Math.abs(api.viewTime() - before - 10) < 0.4);
+
+    for (let mode = 1; mode <= 4; mode++) {
+      api.setMode(mode);
+      const pstate = JSON.stringify(api.S.pstate), show = api.S.showOthers, part = api.S.sel;
+      const before = api.viewTime(); $('soloBtn').click(); await wait(160);
+      const gains = api.A.partGains.map(g => g.gain.value);
+      check('段階' + mode + '：ソロは音だけ変え、再生を続ける', api.S.solo && api.T.playing && api.viewTime() >= before && api.viewTime() - before < 0.5 && gains.every((v, i) => Math.abs(v - (i === part ? api.S.pstate[i].vol : 0)) < 0.002));
+      check('段階' + mode + '：表示・選択・ミュート・音量設定を維持', api.S.mode === mode && api.S.sel === part && api.S.showOthers === show && JSON.stringify(api.S.pstate) === pstate);
+      $('soloBtn').click(); await wait(160);
+      const restored = api.A.partGains.map(g => g.gain.value);
+      check('段階' + mode + '：ソロOFFで元の音に戻る', restored.every((v, i) => Math.abs(v - api.S.pstate[i].vol * (mode === 4 || (mode === 3 && i === part) ? 0 : mode === 2 && i === part ? 0.3 : 1)) < 0.002));
+    }
+    $('endBtn').click(); check('末尾へ移動すると末尾で停止する', !api.T.playing && api.T.pos === api.S.song.duration);
+    $('rewBtn').click(); $('repeatBtn').click();
+    check('初回のループは全曲', $('repeatBtn').getAttribute('aria-pressed') === 'true' && api.loopRange()[0] === 0 && api.loopRange()[1] === api.S.song.duration);
+    api.play(api.S.song.duration - 0.15); await wait(750);
+    check('曲の終わりで実際に先頭へループする', api.T.playing && api.T.p0 === 0 && api.viewTime() < 1);
+    api.pause(); $('loopBtn').click();
+    check('区間指定で既存の小節設定へ切り替わる', api.S.loop.scope === 'section' && !$('loopBox').hidden && api.loopRange()[1] < api.S.song.duration);
+    const range = JSON.stringify(api.loopRange()); $('repeatBtn').click(); $('repeatBtn').click();
+    check('ループOFF→ONで指定区間を保持する', JSON.stringify(api.loopRange()) === range);
+    $('wholeLoopBtn').click(); check('区間から全曲へ戻せる', api.S.loop.scope === 'all' && $('loopBox').hidden);
+    $('repeatBtn').click();
+
+    // MediaRecorderはアプリ本体を使い、入力だけを無音の合成ストリームへ置き換える。
+    w.navigator.mediaDevices.getUserMedia = async () => api.A.ctx.createMediaStreamDestination().stream;
+    $('repeatBtn').click(); // 全曲リピート中の録音にも正しい範囲ラベルを残す
+    $('recBtn').click();
+    for (let i = 0; i < 30 && $('recBtn').getAttribute('aria-pressed') !== 'true'; i++) await wait(50);
+    check('合成マイクで録音を開始する', $('recBtn').getAttribute('aria-pressed') === 'true');
+    check('録音中の移動・ループを無効にする', ['rewBtn','backBtn','forwardBtn','endBtn','repeatBtn','loopBtn','seek'].every(id => $(id).disabled));
+    await wait(300); $('recBtn').click(); await wait(250);
+    check('録音停止後に操作が戻りテイクが残る', !$('forwardBtn').disabled && api.S.takes.length === 1);
+    check('全曲リピートの録音を「区間」と誤表示しない', api.S.takes[0].loopScope === 'all' && $('takeList').textContent.includes('・全曲'));
+    $('repeatBtn').click();
+    $('micBtn').click(); api.S.takes[0].saved = true;
+
+    $('soloBtn').click(); api.enterChord(0);
+    check('和音練習ではソロ切替を無効にする', $('soloBtn').disabled);
+    api.exitChord(); check('通常練習へ戻るとソロ切替が戻る', !$('soloBtn').disabled);
+    api.setSong(api.demoSong(), 'レイアウト検証');
+    check('曲変更で一時ソロを解除する', !api.S.solo && $('soloBtn').getAttribute('aria-pressed') === 'false');
+
+    for (const [width, height] of [[320,548],[360,640],[390,780],[560,360],[844,390],[1200,900]]) {
+      frame.width = width; frame.height = height; await wait(180);
+      const controls = Array.from(d.querySelectorAll('.control-row button'));
+      const rectangles = controls.map(b => b.getBoundingClientRect());
+      const sized = rectangles.every(r => r.width >= 43.9 && r.height >= 43.9);
+      const overlap = rectangles.some((r, i) => rectangles.slice(i + 1).some(s => Math.min(r.right, s.right) - Math.max(r.left, s.left) > 0.5 && Math.min(r.bottom, s.bottom) - Math.max(r.top, s.top) > 0.5));
+      const fits = d.documentElement.scrollWidth <= w.innerWidth + 1;
+      const labels = controls.every(b => b.scrollWidth <= b.clientWidth + 1);
+      check(width + '×' + height + '：ボタン44px・重なりなし・横はみ出しなし・文字切れなし', sized && !overlap && fits && labels, JSON.stringify({ sized, overlap, fits, labels, minWidth: Math.min(...rectangles.map(r => r.width)) }));
+    }
+    frame.width = 390; frame.height = 780; await wait(180);
+    api.S.countIn = false; $('playBtn').click();
+    Object.defineProperty(d, 'visibilityState', { value: 'hidden', configurable: true });
+    d.dispatchEvent(new w.Event('visibilitychange'));
+    check('既存の画面切替時の停止を保つ（バックグラウンドは次の担当）', !api.T.playing);
+    delete d.visibilityState;
+    $('rewBtn').click(); api.setMode(1);
+    status.textContent = rows.length + '項目 PASS'; result.dataset.status = 'passed'; document.getElementById('logs').open = false;
+  } catch (e) { status.textContent = '検証失敗'; result.textContent += '\n' + e.stack; result.dataset.status = 'failed'; }
+};
+</script></html>

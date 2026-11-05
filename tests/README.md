@@ -12,7 +12,7 @@
 
 | コマンド | 内容 | ブラウザ |
 |---|---|---|
-| `npm run test:unit` | MIDIの読み込み（期待値と比較）、音程推定の精度、ビブラートの判定 | 不要 |
+| `npm run test:unit` | MIDI解析、音程推定、ビブラート、表示移動、入力設定、和音復帰・お手本、ソロ・シーク・ループ | 不要 |
 | `npm run test:e2e` | 実ブラウザで操作する総合テスト（下の6項目）。5分ほどかかります | Chromium |
 | `npm run test:marks` | しおりの操作（長押しして離すと作る・なぞると表示の移動・タップでシート・取り消し・中断や2本指では作らない・ここから／ここまで・指での操作）と、「ずれ」欄の高さが変わらないこと | Chromium |
 | `npm run test:parts` | パートごとの音量（最大200%）、バーの色（パート順の初期色・変更・記憶）、音色（記憶・音色ごとの判定） | Chromium |
@@ -21,6 +21,10 @@
 | `npm run test:share` | 曲専用リンク：API（`worker/`）の確認（MIDIだけ受け付ける・大きさ・回数の上限・キー違いと「ない」を区別しない・やめた後・送り直しで2つにならない・IPを残さない）と、アプリの画面（作る・コピー・LINE・開く・やめる・エラー時の表示・スマホでメニューと重ならない）。データベースは Node の `node:sqlite` で代用（`tests/helpers/d1-sqlite.js`） | APIは不要／画面はChromium |
 | `npm run test:share:workerd` | 曲専用リンクのAPIを、Cloudflare の実行環境（`npx wrangler@4 dev` の workerd ＋ 手元のD1）で確かめる：MIDIの出し入れでバイト列が変わらない、同時に30件送っても上限の20件を超えない など。公開後は `node tests/share_workerd.js --remote <WorkerのURL>` で本番を合成MIDIで確かめる（作った曲は最後にやめる） | 不要（wranglerを取得） |
 | `npm run test:layout` | スマホ幅で、音程バーと下の操作バーが同じ画面に収まるか＋画面写真 | Chromium |
+
+HTTPプレビューで `tests/controls-browser.html` を開いて「検証を開始」を押すと、操作ボタン更新の結合テストを実行できます。再生中の10秒シーク・全4段階のソロと元のミックスへの復帰・全曲折り返し・区間指定・合成マイクでの録音・6サイズのレイアウトを、本体のコードと実際のAudioContextで確認します。アプリはテスト用iframe内に読み込まれ、実際のマイク許可は要求しません。
+
+`node tests/transport_test.js` は今回の音量・再生状態の変更だけをブラウザなしで検証します。実機の画面ロック・バックグラウンド動作の確認を代用するテストではありません。
 
 `node tests/e2e2.js <名前>` で一部だけ実行できます：
 
