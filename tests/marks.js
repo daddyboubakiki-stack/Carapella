@@ -221,6 +221,9 @@ const pointer = (p, type, x, y, primary = true, id = 99) => p.evaluate(([type, x
 
   // 11) しおりの区間を繰り返し再生する・チップで選び直す・再読み込み後も残る・×で消せる
   await p.evaluate(() => { const c = document.getElementById('countIn'); if (c.checked) c.click(); seekTo(0); });
+  // PR #21 から、区間の外（先頭）へ移動するとループがオフになり、しおりの欄も隠れる。
+  // 画面での操作と同じく「区間指定」で欄を出してから、しおりのチップを選ぶ。
+  if (await p.locator('#loopBox').isHidden()) { await p.click('#loopBtn'); await sleep(80); }
   await p.locator('#marks .chip').first().click(); await sleep(100);
   const lr = await p.evaluate(() => (S.loop.mark ? loopRange() : null));
   if (!lr) await p.locator('#marks .chip').first().click();
