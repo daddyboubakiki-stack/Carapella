@@ -28,6 +28,7 @@ HTTP配信した `/tests/pick-layout-browser.html` を開き、「検証を開�
 | `npm run test:share:workerd` | 曲専用リンクのAPIを、Cloudflare の実行環境（`npx wrangler@4 dev` の workerd ＋ 手元のD1）で確かめる：MIDIの出し入れでバイト列が変わらない、同時に30件送っても上限の20件を超えない など。公開後は `node tests/share_workerd.js --remote <WorkerのURL>` で本番を合成MIDIで確かめる（作った曲は最後にやめる） | 不要（wranglerを取得） |
 | `npm run test:background` | 画面を切り替えても聴く：用意した音声の中身（ソロ・段階・音量0%・キー・テンポ・区間ループ）を読み戻して測る。隠れた時に `<audio>` へ引き継ぐ・戻ると同じ位置から続ける・テンポ50%・区間ループの繰り返し・ロック画面の操作・曲の終わり・ページを離れた時・マイクON・設定直後・再生を断られた時・曲の変更・区間ループ中に離れた時（初めの設定はループを止めて通し、設定オフは区間を繰り返す）・切り替えの瞬間の音量と位置合わせ | Chromium |
 | `npm run test:layout` | スマホ幅で、音程バーと下の操作バーが同じ画面に収まるか＋画面写真 | Chromium |
+| `npm run test:lyric-fill` | 歌詞の補完ツールの試作（`tools/lyric-fill/`。画面なし）：写す候補と理由、書き出しの約束（変えないトラックはバイト単位で同じ・running status・文字コード・冪等）、カラモニの `parseMidi` と mido での読み直し。詳しくは `tools/lyric-fill/README.md` | 不要（mido があれば mido の比較も） |
 
 HTTPプレビューで `tests/controls-browser.html` を開いて「検証を開始」を押すと、操作ボタン更新の結合テストを実行できます。再生中の10秒シーク・全4段階のソロと元のミックスへの復帰・全曲折り返し・区間指定・合成マイクでの録音・6サイズのレイアウトを、本体のコードと実際のAudioContextで確認します。アプリはテスト用iframe内に読み込まれ、実際のマイク許可は要求しません。
 

@@ -14,7 +14,8 @@
     "test:background:webkit": "node tests/background_browser.js webkit",
     "test:background:iphone": "node tests/background_browser.js iphone",
     "test:share": "node tests/share_api_test.js && node tests/share_app.js",
-    "test:share:workerd": "node tests/share_workerd.js"
+    "test:share:workerd": "node tests/share_workerd.js",
+    "test:lyric-fill": "npm --prefix tools/lyric-fill test"
   },
   "devDependencies": {
     "playwright": "1.63.0"
