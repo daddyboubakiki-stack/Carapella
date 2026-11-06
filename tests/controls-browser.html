@@ -32,7 +32,7 @@ run.onclick = async () => {
   const api = w.__controlsTest;
   try {
     $('demoBtn').click(); api.S.countIn = false; api.setMode(1); api.ensureCtx(); await api.A.ctx.resume();
-    check('デモ曲を開き、再生の6ボタン・練習の4ボタンがある', d.querySelectorAll('.main .btn').length === 6 && d.querySelectorAll('.aux .btn').length === 4);
+    check('デモ曲を開き、再生の6ボタン・練習の5ボタン（診断を含む）がある', d.querySelectorAll('.main .btn').length === 6 && d.querySelectorAll('.aux .btn').length === 5);
     check('イヤホンの長い説明は初期画面に出ない', !$('transportHelp').open && !Array.from(d.querySelectorAll('p.tip')).some(p => p.textContent.startsWith('イヤホンで')));
     $('transportHelpBtn').click(); check('丸い？から説明を開く', $('transportHelp').open && $('transportHelp').textContent.includes('自分だけ聴く'));
     $('transportHelpClose').click(); check('説明を閉じる', !$('transportHelp').open);

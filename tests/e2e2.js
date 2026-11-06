@@ -357,6 +357,66 @@ async function sing(page, { from = 0, secs = 9, part = 0, audible = [true, true,
     await c3.close();
   }
 
+  if (only === 'all' || only === 'diag') {
+    note('\n## 7. マイク診断（操作ボタン2段目の「診断」から開くポップアップ）');
+    for (const [w, h] of [[390, 664], [320, 548]]) {
+      const c4 = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true });
+      await c4.addInitScript(HARNESS);
+      const p4 = await c4.newPage();
+      const e4 = [];
+      p4.on('pageerror', (e) => e4.push(e.message));
+      await p4.route(/fonts\.g/, (r) => r.abort());
+      await p4.goto(URL);
+      await p4.tap('#demoBtn');
+      await sleep(300);
+      const row = await p4.evaluate(() => {
+        const bs = [...document.querySelectorAll('.aux > *')];
+        const tops = new Set(bs.map((b) => { const r = b.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2); }));
+        const ovf = bs.filter((b) => { const s = b.querySelector('span'); return s && s.getBoundingClientRect().width > b.clientWidth; }).map((b) => b.id);
+        return { ids: bs.map((b) => b.id).join(','), rows: tops.size, ovf, docW: document.documentElement.scrollWidth };
+      });
+      check(`${w}px：2段目は マイク・録音・出だし・自分だけ・診断・？ の順に1行で並び、文字がはみ出さない`, row.ids === 'micBtn,recBtn,pitchBtn,soloBtn,micDiagBtn,transportHelpBtn' && row.rows === 1 && row.ovf.length === 0 && row.docW <= w, JSON.stringify(row));
+      await p4.tap('#micDiagBtn');
+      await sleep(100);
+      check(`${w}px：「診断」でポップアップが開く（マイクOFFの表示）`, await p4.$eval('#micDiagDialog', (d) => d.open) && (await text(p4, '#micDiagMic')) === 'OFF');
+      const box = () => p4.$eval('#micDiagDialog', (d) => { const r = d.getBoundingClientRect(); const x = document.getElementById('micDiagClose').getBoundingClientRect(); const f = document.getElementById('micDiagDone').getBoundingClientRect(); return { h: Math.round(r.height), top: Math.round(r.top), xIn: x.top >= 0 && x.right <= innerWidth, x: Math.round(x.width), doneIn: f.bottom <= innerHeight }; });
+      const b0 = await box();
+      await p4.tap('#micDiagMicBtn');
+      await sleep(400);
+      check(`${w}px：ポップアップの中でマイクをONにでき、下のマイクボタンも同じ状態になる`, (await text(p4, '#micDiagMic')) === 'ON' && (await p4.$eval('#micBtn', (b) => b.getAttribute('aria-pressed'))) === 'true' && (await text(p4, '#micDiagMicBtn')) === 'マイクをOFFにする');
+      // 再生してガイドの音をマイクへ入れ、値と助言が変わっても大きさが変わらないことを確かめる
+      await p4.evaluate(() => document.getElementById('playBtn').click());
+      const hs = new Set(), tops = new Set(), advice = new Set(), pitch = new Set();
+      for (let i = 0; i < 25; i++) {
+        await sleep(120);
+        const b = await box();
+        hs.add(b.h); tops.add(b.top);
+        advice.add(await text(p4, '#micDiagAdvice'));
+        pitch.add(await text(p4, '#micDiagPitch'));
+      }
+      const samples = Number(await text(p4, '#micDiagSamples'));
+      check(`${w}px：開いたまま解析回数と音程が更新される`, samples > 20 && [...pitch].some((v) => /Hz/.test(v)), samples + ' / ' + [...pitch].slice(0, 3).join(','));
+      check(`${w}px：値や助言が変わってもポップアップの高さと位置が変わらない`, hs.size === 1 && tops.size === 1 && hs.has(b0.h), `高さ ${[...hs].join(',')}（開いた時 ${b0.h}）・助言 ${advice.size}種類`);
+      check(`${w}px：右上の×（44px以上）と下の「閉じる」が画面内にある`, b0.xIn && b0.x >= 44 && b0.doneIn, JSON.stringify(b0));
+      const sc = await p4.$eval('.mic-diag-body', (e) => { const before = e.scrollTop, page = document.scrollingElement.scrollTop; e.scrollTop = 9999; return { can: e.scrollHeight > e.clientHeight, moved: e.scrollTop > before, pageKept: document.scrollingElement.scrollTop === page }; });
+      if (sc.can) check(`${w}px：中身が入りきらない時はポップアップの中だけスクロールする`, sc.moved && sc.pageKept, JSON.stringify(sc));
+      else note(`  （${w}px：中身が全部入るので、スクロールは不要）`);
+      await p4.tap('#micDiagClose');
+      check(`${w}px：右上の×で閉じる。再生とマイクは続く`, !(await p4.$eval('#micDiagDialog', (d) => d.open)) && (await isPlaying(p4)) && (await p4.$eval('#micBtn', (b) => b.getAttribute('aria-pressed'))) === 'true');
+      await p4.tap('#micDiagBtn');
+      await sleep(100);
+      await p4.tap('#micDiagDone');
+      check(`${w}px：下の「閉じる」でも閉じる`, !(await p4.$eval('#micDiagDialog', (d) => d.open)));
+      await p4.tap('#micDiagBtn');
+      await sleep(100);
+      await p4.screenshot({ path: OUT + `/v2_mic_diag_${w}.png` });
+      await p4.keyboard.press('Escape');
+      check(`${w}px：Escキーでも閉じる`, !(await p4.$eval('#micDiagDialog', (d) => d.open)));
+      check(`${w}px：エラーなし`, e4.length === 0, e4.join(';'));
+      await c4.close();
+    }
+  }
+
   note('\n## エラー');
   const errs = errors.filter((e) => !/fonts\.g|ERR_FAILED/.test(e));
   check('ページのエラーなし', errs.length === 0, errs.join(' / '));
