@@ -299,6 +299,18 @@ section.block h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .setgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px 28px; margin-top: 10px; }
 .set { font-size: 0.92rem; }
 .set > .lbl { font-weight: 700; display: block; margin-bottom: 4px; }
+
+/* 端末別のマイク不具合を切り分ける診断。通常の練習画面の高さは変えない。 */
+.mic-diagnostic { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 10px; }
+.mic-diagnostic > summary { cursor: pointer; font-weight: 700; }
+.mic-diagnostic-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 6px 12px; margin: 10px 0; font-size: 0.82rem; }
+.mic-diagnostic-grid dt { color: var(--muted); }
+.mic-diagnostic-grid dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mic-diagnostic meter { width: 100%; height: 14px; display: block; }
+.mic-diagnostic .help { font-size: 0.8rem; }
+.mic-diagnostic .diag-advice { font-size: 0.84rem; font-weight: 700; margin: 8px 0; }
+.mic-diagnostic textarea { width: 100%; min-height: 7rem; font-size: 0.75rem; }
+
 .set .help { color: var(--muted); font-size: 0.84rem; margin: 4px 0 0; }
 .seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; max-width: 100%; }
 .seg label { padding: 0.35em 0.95em; cursor: pointer; position: relative; }
@@ -717,6 +729,25 @@ body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px
           <label><input type="radio" name="sensitivity" value="high">高</label>
         </div>
         <p class="help">小さい音も判定するかを調整します。「中」がこれまでと同じ設定です。「高」は小さい声を拾いやすくなりますが、ガイド音や周囲の音も拾いやすくなります。スピーカー使用時は、歌わずにガイドだけ流して声の線が出ないか確かめてください。</p>
+      </div>
+
+      <div class="set">
+        <details class="mic-diagnostic" id="micDiagnostic">
+          <summary>マイク診断（声が表示されないとき）</summary>
+          <p class="help">マイクONにして声を伸ばすと、音が届いているか確認できます。音声の保存・送信はしません。</p>
+          <dl class="mic-diagnostic-grid">
+            <dt>マイク</dt><dd id="micDiagMic">OFF</dd>
+            <dt>入力トラック</dt><dd id="micDiagTrack">なし</dd>
+            <dt>音声処理</dt><dd id="micDiagAudio">未作成</dd>
+            <dt>解析回数</dt><dd id="micDiagSamples">0</dd>
+            <dt>入力音量（RMS）</dt><dd id="micDiagRms">0.0000</dd>
+            <dt>検出した音程</dt><dd id="micDiagPitch">未検出</dd>
+          </dl>
+          <meter id="micDiagMeter" min="0" max="1" value="0" aria-label="入力音量の目安"></meter>
+          <p class="diag-advice" id="micDiagAdvice" role="status">マイクをONにして確認してください。</p>
+          <button class="btn small" id="micDiagCopyBtn" type="button">診断結果をコピー</button>
+          <textarea id="micDiagCopyText" readonly hidden aria-label="コピーできない場合の診断結果"></textarea>
+        </details>
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="countIn" checked><span><b>再生の前にカウントを鳴らす</b><br><span class="help">再生・録音・区間リピートのたびに、1小節分のカウントを鳴らします。③④では、このあいだに自分のパートの最初の音も鳴ります。</span></span></label>
@@ -2025,6 +2056,66 @@ function bgSyncStatus() {
 // ===== マイクと音程判定 =====
 const detect = makePitchDetector();
 let sm = { hist: [], miss: 3, last: null };
+
+const micDiag = { reads: 0, rms: 0, clarity: 0, freq: 0 };
+function resetMicDiagnostic() {
+  micDiag.reads = 0; micDiag.rms = 0; micDiag.clarity = 0; micDiag.freq = 0;
+}
+// 音量と周期性の有無を別々に診断する。音がゼロでも原因を断定しない。
+function micDiagnosticHint(d) {
+  if (!d.micOn) return 'マイクがOFFです。ONにして声を伸ばしてください。';
+  if (d.trackState !== 'live') return 'マイクの入力トラックが動いていません。マイクをOFF→ONで試してください。';
+  if (d.muted) return 'ブラウザがマイク入力をミュートしています。端末側のマイク設定を確認してください。';
+  if (d.contextState !== 'running') return '音声処理が停止中です。画面を開いたままマイクをOFF→ONで試してください。';
+  if (!d.samples) return '音声の解析を開始するところです。';
+  if (d.rms < 0.001) return '音声入力がほぼゼロです。声を出しても変わらなければ入力経路を調べる必要があります。';
+  if (d.freq > 0) return '音声入力も音程検出も動いています。';
+  return '音声入力はありますが、音程を検出できていません。一定の高さで「あー」と伸ばしてください。';
+}
+function micDiagnosticSnapshot() {
+  const track = A.mic && A.mic.stream.getAudioTracks()[0];
+  return {
+    micOn: !!A.mic,
+    trackState: track ? track.readyState : 'なし',
+    muted: !!(track && track.muted),
+    contextState: A.ctx ? A.ctx.state : '未作成',
+    samples: micDiag.reads,
+    rms: micDiag.rms,
+    clarity: micDiag.clarity,
+    freq: micDiag.freq,
+    sensitivity: S.sensitivity,
+    sampleRate: A.ctx ? A.ctx.sampleRate : 0,
+  };
+}
+function updateMicDiagnostic() {
+  if (!$('micDiagnostic').open) return;
+  const d = micDiagnosticSnapshot();
+  $('micDiagMic').textContent = d.micOn ? 'ON' : 'OFF';
+  $('micDiagTrack').textContent = d.trackState + (d.muted ? '（ミュート中）' : '');
+  $('micDiagAudio').textContent = d.contextState;
+  $('micDiagSamples').textContent = String(d.samples);
+  $('micDiagRms').textContent = d.rms.toFixed(4);
+  $('micDiagMeter').value = clamp(d.rms / 0.08, 0, 1);
+  $('micDiagPitch').textContent = d.freq > 0 ? d.freq.toFixed(1) + ' Hz（明瞭度 ' + d.clarity.toFixed(2) + '）' : '未検出';
+  $('micDiagAdvice').textContent = micDiagnosticHint(d);
+}
+function micDiagnosticReport() {
+  const d = micDiagnosticSnapshot();
+  return [
+    'カラモニ マイク診断',
+    'マイク: ' + (d.micOn ? 'ON' : 'OFF'),
+    '入力トラック: ' + d.trackState + (d.muted ? ' (muted)' : ''),
+    'AudioContext: ' + d.contextState,
+    '解析回数: ' + d.samples,
+    '入力RMS: ' + d.rms.toFixed(5),
+    '検出周波数: ' + (d.freq > 0 ? d.freq.toFixed(1) + ' Hz' : 'なし'),
+    '明瞭度: ' + d.clarity.toFixed(3),
+    '感度: ' + d.sensitivity,
+    'サンプルレート: ' + d.sampleRate,
+    '判定: ' + micDiagnosticHint(d),
+    'ブラウザ: ' + navigator.userAgent,
+  ].join('\n');
+}
 function smooth(m) {
   if (m == null) {
     sm.miss++;
@@ -2056,6 +2147,7 @@ async function micOn() {
     an.fftSize = 2048;
     src.connect(an);
     A.mic = { stream, src, an, buf: new Float32Array(an.fftSize) };
+    resetMicDiagnostic();
     sm = { hist: [], miss: 3, last: null };
     say('');
   } catch (e) {
@@ -2082,6 +2174,7 @@ function micOff() {
   }
   S.live = null;
   S.level = 0;
+  resetMicDiagnostic();
   setAudioSession();
   syncMicUI();
   kick();
@@ -2106,6 +2199,10 @@ function analyze() {
   const mic = A.mic;
   mic.an.getFloatTimeDomainData(mic.buf);
   const r = detect(mic.buf, A.ctx.sampleRate, { minRms: SENSITIVITY[S.sensitivity] });
+  micDiag.reads++;
+  micDiag.rms = r.rms;
+  micDiag.clarity = r.clarity;
+  micDiag.freq = r.f;
   S.level = r.rms;
   const midi = smooth(r.f > 0 ? 69 + 12 * Math.log2(r.f / 440) : null);
   const live = { midi, target: null, cents: null, ok: null };
@@ -3449,6 +3546,7 @@ function updateReadouts() {
   const md = MODES[T.mode === 'review' && T.reviewTake ? T.reviewTake.mode : S.mode];
   $('scoreLbl').textContent = sc.n > 30 ? (T.mode === 'review' ? 'このテイク' : '今回') + '（' + (md ? md.mark + md.name : '') + '）の音程一致 ' + Math.round((100 * sc.ok) / sc.n) + '%' : '音程一致 —';
   if (A.mic) $('micBtn').style.setProperty('--lvl', String(clamp(S.level * 7, 0, 1)));
+  updateMicDiagnostic();
 }
 
 // ===== 描画 =====
@@ -3932,6 +4030,26 @@ $('transportHelpBtn').addEventListener('click', () => { bgSyncStatus(); $('trans
 $('transportHelpClose').addEventListener('click', () => $('transportHelp').close());
 $('recBtn').addEventListener('click', () => (R ? pause() : startRecording()));
 $('micBtn').addEventListener('click', () => (A.mic ? micOff() : micOn()));
+
+$('micDiagnostic').addEventListener('toggle', updateMicDiagnostic);
+$('micDiagCopyBtn').addEventListener('click', async () => {
+  const report = micDiagnosticReport();
+  const button = $('micDiagCopyBtn');
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(report);
+    button.textContent = 'コピーしました';
+    $('micDiagCopyText').hidden = true;
+  } catch (e) {
+    const box = $('micDiagCopyText');
+    box.hidden = false;
+    box.value = report;
+    box.focus();
+    box.select();
+    button.textContent = '下の文字をコピーしてください';
+  }
+});
+
 $('pitchBtn').addEventListener('click', giveStartNote);
 const seek = $('seek');
 seek.addEventListener('input', () => {
