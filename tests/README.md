@@ -21,6 +21,7 @@
 | `npm run test:share` | 曲専用リンク：API（`worker/`）の確認（MIDIだけ受け付ける・大きさ・回数の上限・キー違いと「ない」を区別しない・やめた後・送り直しで2つにならない・IPを残さない）と、アプリの画面（作る・コピー・LINE・開く・やめる・エラー時の表示・スマホでメニューと重ならない）。データベースは Node の `node:sqlite` で代用（`tests/helpers/d1-sqlite.js`） | APIは不要／画面はChromium |
 | `npm run test:share:workerd` | 曲専用リンクのAPIを、Cloudflare の実行環境（`npx wrangler@4 dev` の workerd ＋ 手元のD1）で確かめる：MIDIの出し入れでバイト列が変わらない、同時に30件送っても上限の20件を超えない など。公開後は `node tests/share_workerd.js --remote <WorkerのURL>` で本番を合成MIDIで確かめる（作った曲は最後にやめる） | 不要（wranglerを取得） |
 | `npm run test:layout` | スマホ幅で、音程バーと下の操作バーが同じ画面に収まるか＋画面写真 | Chromium |
+| `npm run test:lyric-fill` | 歌詞の補完ツールの試作（`tools/lyric-fill/`。画面なし）：写す候補と理由、書き出しの約束（変えないトラックはバイト単位で同じ・running status・文字コード・冪等）、カラモニの `parseMidi` と mido での読み直し。詳しくは `tools/lyric-fill/README.md` | 不要（mido があれば mido の比較も） |
 
 `node tests/e2e2.js <名前>` で一部だけ実行できます：
 

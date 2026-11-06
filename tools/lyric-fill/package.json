@@ -1,0 +1,10 @@
+{
+  "name": "carapella-lyric-fill",
+  "private": true,
+  "description": "空いているパートに、ほかのパートの歌詞を写して .mid に書き足す（画面なしの処理部分）",
+  "type": "module",
+  "exports": "./src/lyric-fill.js",
+  "scripts": {
+    "test": "node --test test/smf.test.js test/plan.test.js test/write.test.js test/carapella.test.js test/mido.test.js test/cli.test.js"
+  }
+}
