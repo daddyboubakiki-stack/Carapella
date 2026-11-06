@@ -1,0 +1,32 @@
+name: Carapella browser & unit tests
+on:
+  push:
+    branches:
+      - 'feature/ipad-mic-diagnostics-20261106'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install browsers and system dependencies
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run unit regression and microphone diagnostic tests
+        run: npm run test:unit
+      - name: Run browser end-to-end regression
+        run: npm run test:e2e
+      - name: Test background audio in WebKit
+        run: npm run test:background:webkit
+      - name: Test iPhone emulation in WebKit
+        run: npm run test:background:iphone
