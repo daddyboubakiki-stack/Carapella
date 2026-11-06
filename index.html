@@ -762,7 +762,7 @@ body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px
           <label><input type="radio" name="tol" value="50" checked>ふつう（半音の1/2まで）</label>
           <label><input type="radio" name="tol" value="25">きびしい（半音の1/4まで）</label>
         </div>
-        <p class="help">目標より高い側・低い側のどちらも、この幅までを「合っている」とします。半音は、ピアノの隣り合う鍵盤どうしの音の差です。ずれの表示は読みやすい分数に丸めるので「約」が付きますが、判定には丸める前の値を使います。ビブラートをかけると、きびしい設定では中心が合っていても外れが増えます。</p>
+        
       </div>
       <div class="set">
         <span class="lbl" id="sensitivityLbl">音を拾う感度</span>
@@ -777,7 +777,7 @@ body:not(.has-song) .file-menu > .actions { justify-content: flex-end; gap: 12px
         <label class="check"><input type="checkbox" id="countIn" checked><span><b>再生の前にカウントを鳴らす</b><br><span class="help">再生・録音・区間リピートのたびに、1小節分のカウントを鳴らします。③④では、このあいだに自分のパートの最初の音も鳴ります。</span></span></label>
       </div>
       <div class="set">
-        <label class="check"><input type="checkbox" id="bgRelease" checked><span><b>画面を離れたら、区間ループを止めて曲の終わりまで聴く</b><br><span class="help">区間・しおりのループ中に、ほかのアプリへ切り替えたり画面を消したりした時の動きです。オンでは、ループだけを止めて、聴いていた位置から曲の終わりまで流します（区間としおりは残ります。戻っても自動では繰り返しません）。オフでは、画面を離れている間も区間を繰り返します（ロック画面の10秒送り・戻しは区間の中だけ）。全曲ループは、どちらでも続きます。</span></span></label>
+        <label class="check"><input type="checkbox" id="bgRelease" checked><span><b>画面を離れたら、区間ループを止めて曲の終わりまで聴く</b></span></label>
       </div>
       <div class="set">
         <label class="check"><input type="checkbox" id="octFree"><span><b>オクターブ違いも正解にする</b><br><span class="help">男声が女声パートを（またはその逆を）練習する時に。声の線は目標と同じオクターブに移して表示します。</span></span></label>
