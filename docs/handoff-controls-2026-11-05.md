@@ -256,7 +256,7 @@
 
 ### 7.10 プレビューURL（2026-11-05 作成・同日削除）
 
-> **2026-11-06 に同じ名前で作り直した**（PR #37「マイク診断のポップアップ」をユーザーが実機で触るため、ユーザーの依頼）。URLは同じ <https://carapella-preview.daddyboubakiki.workers.dev/>、中身はコミット `7ebcf27` の `index.html`（タイトルと見出しに「プレビュー」を足すだけ）。応答ヘッダー `X-Preview-Commit` で配っているコミットを確かめられる。Chromium の Android 相当の画面で、デモ曲→「診断」→中の「マイクをONにする」→偽マイクの220Hzを「220.0 Hz」と表示、を確認（実機ではない）。PR #37 のマージ・公開後は、前回と同じく削除する。
+> **2026-11-06 に同じ名前で作り直した**（PR #37「マイク診断のポップアップ」をユーザーが実機で触るため、ユーザーの依頼）。URLは同じ <https://carapella-preview.daddyboubakiki.workers.dev/>、中身はコミット `7ebcf27` の `index.html`（タイトルと見出しに「プレビュー」を足すだけ）。応答ヘッダー `X-Preview-Commit` で配っているコミットを確かめられる。Chromium の Android 相当の画面で、デモ曲→「診断」→中の「マイクをONにする」→偽マイクの220Hzを「220.0 Hz」と表示、を確認（実機ではない）。**PR #37 のマージ（`c800fd6`）と公開の後、同日に削除した**（Worker `carapella-preview` を消し、URLが 404 を返すことを確認。`carapella-share` とほかの Worker は残している）。公開URLの `index.html` が `main` と同じ（blob `057eb49`）ことと、公開URLで「診断」→マイクON→220Hzの表示も確かめた（Chromium の Android 相当、実機ではない）。
 
 > **2026-11-05 に削除した**（PR #23 の `main` へのマージと公開の後、ユーザーの指示）。Worker `carapella-preview` を消し、URLが 404 を返すことを確認した。共有APIの Worker `carapella-share` とほかの Worker は残している。以後の実機確認は公開URL（https://daddyboubakiki-stack.github.io/Carapella/）で行う。以下は作成時の記録。
 
